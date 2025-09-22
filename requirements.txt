@@ -1,0 +1,11 @@
+# Core dependencies
+# (None required for basic functionality)
+
+# Testing dependencies (optional)
+pytest>=7.0.0
+pytest-bdd>=6.0.0
+pytest-html>=3.0.0
+pytest-cov>=4.0.0
+
+# Performance monitoring dependencies (optional)
+psutil>=5.8.0

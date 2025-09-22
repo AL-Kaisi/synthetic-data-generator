@@ -31,7 +31,7 @@ def install_test_dependencies():
 
 def run_bdd_tests():
     """Run BDD tests with pytest"""
-    print("\n🧪 Running BDD Tests...")
+    print("\nRunning BDD Tests...")
     print("="*50)
 
     cmd = [
@@ -41,9 +41,7 @@ def run_bdd_tests():
         "--tb=short",
         "--html=test_report.html",
         "--self-contained-html",
-        "--cov=generators",
-        "--cov=schema_processor",
-        "--cov=schema_data_generator",
+        "--cov=simple_generator",
         "--cov-report=html:htmlcov",
         "--cov-report=term-missing"
     ]
@@ -87,11 +85,11 @@ def run_safety_validation():
     safety_test_code = '''
 import sys
 sys.path.insert(0, ".")
-from schema_data_generator import SchemaDataGenerator
+from simple_generator import SchemaDataGenerator
 from dwp_schemas import dwp_schemas
 
 def test_nino_safety():
-    generator = SchemaDataGenerator(domain="dwp")
+    generator = SchemaDataGenerator()
 
     # Generate sample NINOs
     test_data = generator.generate_from_schema(dwp_schemas["child_benefit"], 100)
@@ -151,7 +149,7 @@ def main():
     print("="*50)
 
     # Check if we're in the right directory
-    required_files = ["schema_data_generator.py", "dwp_schemas.py"]
+    required_files = ["simple_generator.py", "dwp_schemas.py"]
     missing_files = [f for f in required_files if not os.path.exists(f)]
 
     if missing_files:

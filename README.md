@@ -1,91 +1,123 @@
-# Enterprise Data Generator with Design Patterns
+# Universal Synthetic Data Generator
 
-A sophisticated synthetic data generator built with enterprise-grade design patterns, specifically designed for DWP (Department for Work and Pensions) safety standards. Generates realistic test data from any JSON schema while ensuring no real personal information can be accidentally created.
+A simple, flexible command-line tool that creates realistic test data from ANY JSON schema. No unnecessary complexity - just straightforward data generation that works.
+
+**New to this tool? Start with the [Getting Started Guide](GETTING_STARTED.md)**
 
 ## Key Features
 
-- **Schema-Driven**: Works with any JSON schema
-- **Pattern-Based Architecture**: Built with 9 design patterns
-- **DWP Safety Compliant**: Cannot generate real NINOs
+- **Universal Schema Support**: Works with ANY valid JSON schema - no restrictions!
+- **Multiple Data Types**: Strings, numbers, integers, booleans, arrays, objects, dates
+- **Predefined Templates**: E-commerce, healthcare, finance, education, HR, IoT, social media
+- **Simple Architecture**: Direct, easy-to-understand code
 - **High Performance**: 10K+ records/second
-- **JSON-LD Support**: Semantic web compatibility
-- **BDD Tested**: Comprehensive behavioral tests
-- **Enterprise Ready**: Production-grade architecture
+- **Multiple Output Formats**: JSON, CSV, JSON-LD
+- **Interactive CLI**: Menu-driven command-line interface
+- **Batch Processing**: Scriptable command-line operations
+- **DWP Safety Compliant**: Optional safety mode for sensitive data
+- **Production Ready**: Reliable and well-tested
 
 ## Quick Start
 
+### CLI Usage
+
+```bash
+# Interactive mode (recommended for beginners)
+python3 cli.py
+
+# Direct commands
+python3 cli.py list                                    # List schemas
+python3 cli.py generate ecommerce_product -n 100      # Generate data
+python3 cli.py from-file my_schema.json -n 50         # From file
+python3 cli.py create                                  # Schema builder
+
+# Legacy commands (still supported)
+python3 generate_data.py list
+python3 generate_data.py generate healthcare_patient -n 100
+```
+
+### Interactive CLI
+
+```bash
+# Run interactive mode
+python3 cli.py
+
+# Or use specific commands directly
+python3 cli.py generate ecommerce_product -n 100
+```
+
+### Python API
+
 ```python
-from schema_data_generator import SchemaDataGenerator
-from dwp_schemas import dwp_schemas
+from simple_generator import SchemaDataGenerator
+from schemas import SchemaLibrary
 
-# Create generator with DWP safety rules
-generator = SchemaDataGenerator(domain="dwp")
+# Create generator - that's it!
+generator = SchemaDataGenerator()
 
-# Generate Child Benefit test data
-data = generator.generate_from_schema(dwp_schemas["child_benefit"], 1000)
+# Use predefined schema
+schemas = SchemaLibrary.get_all_schemas()
+data = generator.generate_from_schema(schemas["ecommerce_product"], 100)
 
-# Convert to JSON-LD
-json_ld = generator.to_json_ld(data, dwp_schemas["child_benefit"])
+# Use custom schema
+custom_schema = {
+    "type": "object",
+    "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string", "maxLength": 50},
+        "price": {"type": "number", "minimum": 0, "maximum": 1000}
+    }
+}
+data = generator.generate_from_schema(custom_schema, 50)
 ```
 
-## 📋 Pre-built DWP Schemas
+## Predefined Schemas
 
-- **Child Benefit** (21 fields) - Child benefit claims
-- **State Pension** (25 fields) - State pension records
-- **Universal Credit** (33 fields) - Universal credit claims
-- **ESA** (28 fields) - Employment Support Allowance
-- **PIP** (31 fields) - Personal Independence Payment
+### Business Schemas
+- **E-commerce Product** - Product catalogs with pricing, inventory, ratings
+- **Financial Transaction** - Banking transactions with fraud detection fields
+- **HR Employee** - Employee records with departments, salaries, benefits
 
-## 🔒 Safety Features
+### Healthcare & Education
+- **Healthcare Patient** - Medical records with allergies, medications, vitals
+- **Education Student** - Academic records with grades, courses, enrollment
 
-### NINO Safety
-- **Invalid Prefixes Only**: Uses BG, GB, NK, KN, TN, NT, ZZ, AA, AB, AO, FY, NY, OA, PO, OP
-- **Automatic Detection**: Any field containing "nino" uses safe generation
-- **Business Rules**: DWP-specific validation ensures compliance
+### Technical Schemas
+- **IoT Sensor Data** - Device readings with timestamps, locations, statuses
+- **Social Media Post** - Posts with engagement metrics, hashtags, mentions
 
-```python
-# Example safe NINO: TN123456A
-# TN prefix = test-only
-# Correct format but impossible to be real
+### Government Schemas (DWP)
+- **Child Benefit** - Child benefit claims
+- **State Pension** - State pension records
+- **Universal Credit** - Universal credit claims
+- **ESA** - Employment Support Allowance
+- **PIP** - Personal Independence Payment
+
+## Safety Features
+
+For sensitive data like UK National Insurance Numbers (NINOs), the generator automatically uses test-safe prefixes that cannot be real (TN, BG, ZZ, etc.). Any field containing "nino" in the name gets this safe treatment automatically.
+
+## Simple Architecture
+
+The generator uses a straightforward approach:
+
+```
+Schema → DataGenerator → Generated Data
 ```
 
-## Architecture Overview
+- **DataGenerator**: Single class that handles all field types
+- **SchemaDataGenerator**: Orchestrates record generation
+- **Direct Type Mapping**: Each type has a simple generation method
 
-The system implements 9 design patterns working together:
+## Performance
 
-```
-Client Code → Facade → Registry → Factory → Strategy
-                 ↓
-            Chain of Responsibility → Template Method → Builder
-```
+The simplified generator is fast and efficient:
 
-### Design Patterns Used
+- **10K records**: ~1 second
+- **100K records**: ~10 seconds
+- **1M records**: ~2 minutes
 
-1. **Facade Pattern** - Simple interface hiding complexity
-2. **Singleton Pattern** - Single generator registry
-3. **Abstract Factory Pattern** - Creates generator families
-4. **Factory Method Pattern** - Creates objects by type
-5. **Strategy Pattern** - Interchangeable generation algorithms
-6. **Chain of Responsibility** - Sequential schema processing
-7. **Template Method Pattern** - Consistent generation workflow
-8. **Builder Pattern** - Constructs processing chains
-9. **Registry Pattern** - Manages available factories
-
-## Performance Benchmarks
-
-| Schema | Fields | Records/Second | Memory (100K records) |
-|--------|--------|----------------|----------------------|
-| Child Benefit | 21 | 15,286 | 45 MB |
-| State Pension | 25 | 13,210 | 52 MB |
-| Universal Credit | 33 | 11,801 | 68 MB |
-| ESA | 28 | 11,831 | 58 MB |
-| PIP | 31 | 7,884 | 64 MB |
-
-**Projections:**
-- 10K records: 0.8 seconds
-- 100K records: 8.4 seconds
-- 1M records: 1.4 minutes
-- 10M records: 0.2 hours
+Actual performance depends on schema complexity and your hardware.
 
 ## Testing
 
@@ -114,10 +146,10 @@ data = generator.generate_from_schema(dwp_schemas['child_benefit'], 100)
 for record in data:
     nino = record.get('nino', '')
     if nino and not nino.startswith(('BG', 'GB', 'NK', 'KN', 'TN', 'NT', 'ZZ', 'AA', 'AB', 'AO', 'FY', 'NY', 'OA', 'PO', 'OP')):
-        print(f'⚠️  Unsafe NINO: {nino}')
+        print(f'WARNING: Unsafe NINO: {nino}')
         break
 else:
-    print('✅ All NINOs are test-safe!')
+    print('SUCCESS: All NINOs are test-safe!')
 "
 ```
 
@@ -149,60 +181,49 @@ data = generator.generate_from_schema(custom_schema, 500)
 - **[CODE_EXPLANATION.md](CODE_EXPLANATION.md)** - Step-by-step code walkthrough
 - **[PATTERN_DIAGRAM.md](PATTERN_DIAGRAM.md)** - Visual design pattern diagrams
 
-## Extension Points
+## Extending the Generator
 
-### Adding New Generators
+The simple generator is easy to extend:
+
 ```python
-class CustomGenerator(DataGenerator):
-    def generate(self, constraints: Dict) -> Any:
-        # Custom generation logic
-        pass
+from simple_generator import DataGenerator
 
-    def validate_constraints(self, constraints: Dict) -> bool:
-        # Custom validation
-        return True
+# Extend the DataGenerator class
+class MyCustomGenerator(DataGenerator):
+    def generate_string(self, field_name: str, schema: Dict) -> str:
+        # Add your custom string generation logic
+        if "product_code" in field_name.lower():
+            return f"PROD-{random.randint(1000, 9999)}"
+
+        # Fall back to default behavior
+        return super().generate_string(field_name, schema)
+
+# Use your custom generator
+from simple_generator import SchemaDataGenerator
+
+class MySchemaGenerator(SchemaDataGenerator):
+    def __init__(self):
+        super().__init__()
+        self.generator = MyCustomGenerator()
 ```
 
-### Adding New Processors
-```python
-class CustomProcessor(SchemaProcessor):
-    def _handle_processing(self, context: ProcessingContext):
-        # Custom processing logic
-        pass
-```
+## Supported Data Types
 
-### Adding New Factories
-```python
-class CustomFactory(GeneratorFactory):
-    def create_specialized_generator(self, generator_type: str) -> DataGenerator:
-        return CustomGenerator()
-```
+- **string**: Text with optional constraints (length, pattern, enum)
+- **integer**: Whole numbers with min/max ranges
+- **number**: Decimal numbers with precision control
+- **boolean**: True/false values
+- **array**: Lists of items
+- **object**: Nested objects
+- **date**: Date strings with custom ranges
 
-## Field Type Support
+Smart field detection automatically generates appropriate data based on field names (email, phone, first_name, etc.).
 
-| Type | Examples | Constraints |
-|------|----------|-------------|
-| string | names, addresses | minLength, maxLength, enum, pattern |
-| integer | ages, counts | minimum, maximum |
-| number | amounts, rates | minimum, maximum, decimalPlaces |
-| boolean | flags, status | true_probability |
-| date | birth dates, start dates | start, end |
-| email | contact emails | format |
-| phone | contact numbers | format (uk/us) |
-| url | websites | - |
-| uuid | unique identifiers | - |
-| nino | National Insurance | **Always test-safe** |
+## Performance Testing
 
-## Monitoring
-
-```python
-from performance_test import PerformanceTester
-
-tester = PerformanceTester()
-results = tester.run_comprehensive_benchmark()
-
-print(f"Average speed: {results['summary']['average_records_per_second']:,.0f} rec/s")
-print(f"Memory usage: {results['summary']['average_memory_usage_mb']:.1f} MB")
+```bash
+# Run performance tests
+python3 performance_test.py
 ```
 
 ## Use Cases

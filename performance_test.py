@@ -9,7 +9,7 @@ import psutil
 import os
 from datetime import datetime
 from typing import Dict, List
-from schema_data_generator import SchemaDataGenerator
+from simple_generator import SchemaDataGenerator
 from dwp_schemas import dwp_schemas
 
 class PerformanceTester:
