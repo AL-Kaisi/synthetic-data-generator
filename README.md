@@ -16,11 +16,17 @@ python3 cli.py
 # List available schemas
 python3 cli.py list
 
-# Generate 100 e-commerce products
+# Generate 100 e-commerce products as JSON (default)
 python3 cli.py generate ecommerce_product -n 100
 
+# Generate as CSV format
+python3 cli.py generate ecommerce_product -n 100 --format csv
+
+# Generate as JSON-LD format
+python3 cli.py generate ecommerce_product -n 100 --format jsonld
+
 # Generate from your own schema
-python3 cli.py from-file my_schema.json -n 50
+python3 cli.py from-file my_schema.json -n 50 --format csv
 ```
 
 ## Key Features
@@ -28,7 +34,7 @@ python3 cli.py from-file my_schema.json -n 50
 - **Universal Schema Support**: Works with ANY valid JSON schema
 - **Zero Dependencies**: Pure Python standard library
 - **Interactive CLI**: Menu-driven interface for beginners
-- **7+ Predefined Templates**: E-commerce, healthcare, finance, education, HR, IoT, social media
+- **13+ Predefined Templates**: E-commerce, healthcare, finance, education, HR, IoT, social media, data engineering
 - **Smart Data Generation**: Context-aware realistic data
 - **Safety Features**: Test-safe generation for sensitive data (NINO, etc.)
 - **High Performance**: 10K+ records/second
@@ -46,11 +52,14 @@ data = generator.generate_from_schema(your_schema, 100)
 ## Examples
 
 ```bash
-# Generate healthcare patient records
+# Generate healthcare patient records as JSON
 python3 cli.py generate healthcare_patient -n 50
 
-# Generate from custom schema file
-python3 cli.py from-file person_schema.json -n 100
+# Generate pipeline metadata as CSV
+python3 cli.py generate data_pipeline_metadata -n 100 --format csv
+
+# Generate from custom schema file as JSON-LD
+python3 cli.py from-file person_schema.json -n 100 --format jsonld
 
 # Interactive schema builder
 python3 cli.py create

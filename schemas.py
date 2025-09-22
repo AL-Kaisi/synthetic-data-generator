@@ -255,6 +255,296 @@ class SchemaLibrary:
         }
 
     @staticmethod
+    def data_pipeline_metadata_schema() -> Dict:
+        """Data pipeline execution metadata schema for data engineering"""
+        return {
+            "type": "object",
+            "title": "PipelineExecution",
+            "properties": {
+                "execution_id": {"type": "string"},
+                "pipeline_name": {"type": "string"},
+                "pipeline_version": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"},
+                "environment": {"type": "string", "enum": ["dev", "staging", "prod"]},
+                "trigger_type": {"type": "string", "enum": ["scheduled", "manual", "event-driven", "api"]},
+                "start_timestamp": {"type": "string"},
+                "end_timestamp": {"type": "string"},
+                "duration_seconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+                "status": {"type": "string", "enum": ["running", "succeeded", "failed", "cancelled", "retrying"]},
+                "exit_code": {"type": "integer", "minimum": 0, "maximum": 255},
+                "data_source": {"type": "string", "enum": ["s3", "kafka", "postgres", "mongodb", "api", "sftp", "gcs", "azure-blob"]},
+                "data_sink": {"type": "string", "enum": ["redshift", "snowflake", "bigquery", "databricks", "elastic", "s3", "kafka"]},
+                "records_processed": {"type": "integer", "minimum": 0, "maximum": 10000000},
+                "records_failed": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                "bytes_processed": {"type": "integer", "minimum": 0, "maximum": 1000000000000},
+                "cpu_usage_percent": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "memory_usage_mb": {"type": "integer", "minimum": 0, "maximum": 32000},
+                "cost_usd": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 4},
+                "data_quality_score": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "sla_met": {"type": "boolean"},
+                "error_message": {"type": "string", "maxLength": 1000},
+                "retry_count": {"type": "integer", "minimum": 0, "maximum": 5},
+                "cluster_id": {"type": "string"},
+                "spark_application_id": {"type": "string"},
+                "lineage_upstream": {"type": "array", "items": {"type": "string"}},
+                "lineage_downstream": {"type": "array", "items": {"type": "string"}},
+                "tags": {"type": "array", "items": {"type": "string"}},
+                "owner": {"type": "string"},
+                "team": {"type": "string"}
+            },
+            "required": ["execution_id", "pipeline_name", "start_timestamp", "status", "records_processed"]
+        }
+
+    @staticmethod
+    def ml_model_training_schema() -> Dict:
+        """Machine learning model training metadata schema"""
+        return {
+            "type": "object",
+            "title": "MLModelTraining",
+            "properties": {
+                "training_job_id": {"type": "string"},
+                "model_name": {"type": "string"},
+                "model_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+                "algorithm": {"type": "string", "enum": ["random-forest", "xgboost", "neural-network", "svm", "linear-regression", "logistic-regression", "decision-tree"]},
+                "framework": {"type": "string", "enum": ["scikit-learn", "tensorflow", "pytorch", "xgboost", "h2o", "spark-ml"]},
+                "training_start": {"type": "string"},
+                "training_end": {"type": "string"},
+                "training_duration_minutes": {"type": "integer", "minimum": 1, "maximum": 10080},
+                "dataset_size_rows": {"type": "integer", "minimum": 100, "maximum": 100000000},
+                "dataset_size_gb": {"type": "number", "minimum": 0.001, "maximum": 10000, "decimalPlaces": 3},
+                "feature_count": {"type": "integer", "minimum": 1, "maximum": 10000},
+                "train_split": {"type": "number", "minimum": 0.5, "maximum": 0.9, "decimalPlaces": 2},
+                "validation_split": {"type": "number", "minimum": 0.05, "maximum": 0.3, "decimalPlaces": 2},
+                "test_split": {"type": "number", "minimum": 0.05, "maximum": 0.3, "decimalPlaces": 2},
+                "hyperparameters": {"type": "object"},
+                "cross_validation_folds": {"type": "integer", "minimum": 3, "maximum": 10},
+                "accuracy": {"type": "number", "minimum": 0, "maximum": 1, "decimalPlaces": 4},
+                "precision": {"type": "number", "minimum": 0, "maximum": 1, "decimalPlaces": 4},
+                "recall": {"type": "number", "minimum": 0, "maximum": 1, "decimalPlaces": 4},
+                "f1_score": {"type": "number", "minimum": 0, "maximum": 1, "decimalPlaces": 4},
+                "auc_roc": {"type": "number", "minimum": 0, "maximum": 1, "decimalPlaces": 4},
+                "rmse": {"type": "number", "minimum": 0, "maximum": 1000, "decimalPlaces": 4},
+                "mae": {"type": "number", "minimum": 0, "maximum": 1000, "decimalPlaces": 4},
+                "training_loss": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 6},
+                "validation_loss": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 6},
+                "epochs": {"type": "integer", "minimum": 1, "maximum": 1000},
+                "early_stopping": {"type": "boolean"},
+                "compute_instance_type": {"type": "string"},
+                "gpu_count": {"type": "integer", "minimum": 0, "maximum": 8},
+                "memory_peak_gb": {"type": "number", "minimum": 0.1, "maximum": 1000, "decimalPlaces": 2},
+                "training_cost_usd": {"type": "number", "minimum": 0.01, "maximum": 10000, "decimalPlaces": 4},
+                "model_size_mb": {"type": "number", "minimum": 0.1, "maximum": 10000, "decimalPlaces": 2},
+                "feature_importance": {"type": "array", "items": {"type": "object"}},
+                "confusion_matrix": {"type": "array", "items": {"type": "array"}},
+                "experiment_id": {"type": "string"},
+                "mlflow_run_id": {"type": "string"},
+                "git_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+                "data_scientist": {"type": "string"},
+                "production_ready": {"type": "boolean"}
+            },
+            "required": ["training_job_id", "model_name", "algorithm", "training_start", "accuracy"]
+        }
+
+    @staticmethod
+    def distributed_system_metrics_schema() -> Dict:
+        """Distributed system monitoring and metrics schema"""
+        return {
+            "type": "object",
+            "title": "SystemMetrics",
+            "properties": {
+                "metric_id": {"type": "string"},
+                "timestamp": {"type": "string"},
+                "service_name": {"type": "string"},
+                "service_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+                "instance_id": {"type": "string"},
+                "cluster_name": {"type": "string"},
+                "availability_zone": {"type": "string", "enum": ["us-east-1a", "us-east-1b", "us-west-2a", "us-west-2b", "eu-west-1a", "eu-west-1b"]},
+                "environment": {"type": "string", "enum": ["dev", "staging", "prod"]},
+                "cpu_utilization": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "memory_utilization": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "disk_utilization": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "network_in_mbps": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 2},
+                "network_out_mbps": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 2},
+                "requests_per_second": {"type": "integer", "minimum": 0, "maximum": 100000},
+                "response_time_p50": {"type": "number", "minimum": 0, "maximum": 60000, "decimalPlaces": 2},
+                "response_time_p95": {"type": "number", "minimum": 0, "maximum": 60000, "decimalPlaces": 2},
+                "response_time_p99": {"type": "number", "minimum": 0, "maximum": 60000, "decimalPlaces": 2},
+                "error_rate": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 4},
+                "thread_count": {"type": "integer", "minimum": 1, "maximum": 10000},
+                "connection_pool_active": {"type": "integer", "minimum": 0, "maximum": 1000},
+                "connection_pool_idle": {"type": "integer", "minimum": 0, "maximum": 1000},
+                "gc_time_ms": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 2},
+                "heap_memory_mb": {"type": "number", "minimum": 0, "maximum": 32000, "decimalPlaces": 2},
+                "cache_hit_rate": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "queue_depth": {"type": "integer", "minimum": 0, "maximum": 100000},
+                "active_sessions": {"type": "integer", "minimum": 0, "maximum": 100000},
+                "database_connections": {"type": "integer", "minimum": 0, "maximum": 1000},
+                "circuit_breaker_state": {"type": "string", "enum": ["closed", "open", "half-open"]},
+                "health_check_status": {"type": "string", "enum": ["healthy", "unhealthy", "degraded"]},
+                "deployment_version": {"type": "string"},
+                "alerts_fired": {"type": "array", "items": {"type": "string"}},
+                "slo_compliance": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 4},
+                "cost_per_hour": {"type": "number", "minimum": 0.001, "maximum": 1000, "decimalPlaces": 6}
+            },
+            "required": ["metric_id", "timestamp", "service_name", "instance_id", "cpu_utilization"]
+        }
+
+    @staticmethod
+    def real_time_analytics_schema() -> Dict:
+        """Real-time streaming analytics event schema"""
+        return {
+            "type": "object",
+            "title": "StreamingEvent",
+            "properties": {
+                "event_id": {"type": "string"},
+                "event_type": {"type": "string", "enum": ["click", "view", "purchase", "signup", "login", "logout", "search", "add_to_cart", "checkout"]},
+                "timestamp": {"type": "string"},
+                "user_id": {"type": "string"},
+                "session_id": {"type": "string"},
+                "device_id": {"type": "string"},
+                "ip_address": {"type": "string", "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$"},
+                "user_agent": {"type": "string"},
+                "platform": {"type": "string", "enum": ["web", "mobile_ios", "mobile_android", "tablet", "desktop"]},
+                "browser": {"type": "string", "enum": ["chrome", "firefox", "safari", "edge", "other"]},
+                "country": {"type": "string"},
+                "region": {"type": "string"},
+                "city": {"type": "string"},
+                "referrer": {"type": "string"},
+                "utm_source": {"type": "string"},
+                "utm_medium": {"type": "string"},
+                "utm_campaign": {"type": "string"},
+                "page_url": {"type": "string"},
+                "page_title": {"type": "string"},
+                "product_id": {"type": "string"},
+                "category": {"type": "string"},
+                "search_query": {"type": "string"},
+                "search_results_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                "scroll_depth": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "time_on_page": {"type": "integer", "minimum": 0, "maximum": 7200},
+                "conversion_value": {"type": "number", "minimum": 0, "maximum": 100000, "decimalPlaces": 2},
+                "ab_test_variant": {"type": "string"},
+                "feature_flags": {"type": "array", "items": {"type": "string"}},
+                "custom_properties": {"type": "object"},
+                "kafka_partition": {"type": "integer", "minimum": 0, "maximum": 100},
+                "kafka_offset": {"type": "integer", "minimum": 0},
+                "processing_latency_ms": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 2},
+                "event_schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+                "enrichment_timestamp": {"type": "string"},
+                "fraud_score": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "anomaly_detected": {"type": "boolean"},
+                "data_quality_issues": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["event_id", "event_type", "timestamp", "user_id", "platform"]
+        }
+
+    @staticmethod
+    def data_warehouse_table_schema() -> Dict:
+        """Data warehouse table metadata and lineage schema"""
+        return {
+            "type": "object",
+            "title": "DataWarehouseTable",
+            "properties": {
+                "table_id": {"type": "string"},
+                "schema_name": {"type": "string"},
+                "table_name": {"type": "string"},
+                "table_type": {"type": "string", "enum": ["fact", "dimension", "bridge", "staging", "ods", "mart"]},
+                "environment": {"type": "string", "enum": ["dev", "staging", "prod"]},
+                "warehouse_platform": {"type": "string", "enum": ["snowflake", "redshift", "bigquery", "databricks", "synapse"]},
+                "creation_timestamp": {"type": "string"},
+                "last_modified": {"type": "string"},
+                "last_refreshed": {"type": "string"},
+                "row_count": {"type": "integer", "minimum": 0, "maximum": 10000000000},
+                "size_gb": {"type": "number", "minimum": 0, "maximum": 100000, "decimalPlaces": 3},
+                "column_count": {"type": "integer", "minimum": 1, "maximum": 1000},
+                "data_freshness_hours": {"type": "number", "minimum": 0, "maximum": 168, "decimalPlaces": 2},
+                "refresh_frequency": {"type": "string", "enum": ["real-time", "hourly", "daily", "weekly", "monthly", "on-demand"]},
+                "sla_hours": {"type": "number", "minimum": 0.5, "maximum": 168, "decimalPlaces": 1},
+                "sla_met": {"type": "boolean"},
+                "data_quality_score": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "null_percentage": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "duplicate_percentage": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "uniqueness_score": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "completeness_score": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "consistency_score": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "source_systems": {"type": "array", "items": {"type": "string"}},
+                "upstream_tables": {"type": "array", "items": {"type": "string"}},
+                "downstream_tables": {"type": "array", "items": {"type": "string"}},
+                "dependent_dashboards": {"type": "array", "items": {"type": "string"}},
+                "dependent_reports": {"type": "array", "items": {"type": "string"}},
+                "primary_keys": {"type": "array", "items": {"type": "string"}},
+                "foreign_keys": {"type": "array", "items": {"type": "string"}},
+                "partitioning_strategy": {"type": "string", "enum": ["date", "hash", "range", "none"]},
+                "clustering_keys": {"type": "array", "items": {"type": "string"}},
+                "compression_ratio": {"type": "number", "minimum": 1, "maximum": 20, "decimalPlaces": 2},
+                "storage_cost_monthly": {"type": "number", "minimum": 0, "maximum": 100000, "decimalPlaces": 2},
+                "compute_cost_monthly": {"type": "number", "minimum": 0, "maximum": 100000, "decimalPlaces": 2},
+                "access_pattern": {"type": "string", "enum": ["high-frequency", "medium-frequency", "low-frequency", "archive"]},
+                "business_owner": {"type": "string"},
+                "technical_owner": {"type": "string"},
+                "data_steward": {"type": "string"},
+                "documentation_url": {"type": "string"},
+                "tags": {"type": "array", "items": {"type": "string"}},
+                "sensitivity_level": {"type": "string", "enum": ["public", "internal", "confidential", "restricted"]},
+                "retention_policy_days": {"type": "integer", "minimum": 30, "maximum": 2555}
+            },
+            "required": ["table_id", "schema_name", "table_name", "table_type", "warehouse_platform", "row_count"]
+        }
+
+    @staticmethod
+    def cloud_infrastructure_schema() -> Dict:
+        """Cloud infrastructure resource monitoring schema"""
+        return {
+            "type": "object",
+            "title": "CloudResource",
+            "properties": {
+                "resource_id": {"type": "string"},
+                "resource_type": {"type": "string", "enum": ["ec2", "rds", "s3", "lambda", "ecs", "eks", "redshift", "elasticsearch"]},
+                "cloud_provider": {"type": "string", "enum": ["aws", "azure", "gcp"]},
+                "region": {"type": "string"},
+                "availability_zone": {"type": "string"},
+                "environment": {"type": "string", "enum": ["dev", "staging", "prod"]},
+                "timestamp": {"type": "string"},
+                "resource_name": {"type": "string"},
+                "instance_type": {"type": "string"},
+                "instance_size": {"type": "string", "enum": ["nano", "micro", "small", "medium", "large", "xlarge", "2xlarge", "4xlarge", "8xlarge"]},
+                "cpu_cores": {"type": "integer", "minimum": 1, "maximum": 96},
+                "memory_gb": {"type": "integer", "minimum": 1, "maximum": 768},
+                "storage_gb": {"type": "integer", "minimum": 8, "maximum": 64000},
+                "network_performance": {"type": "string", "enum": ["low", "moderate", "high", "10-gigabit", "25-gigabit"]},
+                "state": {"type": "string", "enum": ["running", "stopped", "terminated", "pending", "stopping"]},
+                "uptime_hours": {"type": "number", "minimum": 0, "maximum": 8760, "decimalPlaces": 2},
+                "cpu_utilization": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "memory_utilization": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "disk_utilization": {"type": "number", "minimum": 0, "maximum": 100, "decimalPlaces": 2},
+                "network_in_gb": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 3},
+                "network_out_gb": {"type": "number", "minimum": 0, "maximum": 10000, "decimalPlaces": 3},
+                "iops": {"type": "integer", "minimum": 0, "maximum": 80000},
+                "hourly_cost": {"type": "number", "minimum": 0.001, "maximum": 100, "decimalPlaces": 6},
+                "monthly_cost": {"type": "number", "minimum": 0.01, "maximum": 72000, "decimalPlaces": 2},
+                "reserved_instance": {"type": "boolean"},
+                "spot_instance": {"type": "boolean"},
+                "auto_scaling_group": {"type": "string"},
+                "load_balancer": {"type": "string"},
+                "security_groups": {"type": "array", "items": {"type": "string"}},
+                "vpc_id": {"type": "string"},
+                "subnet_id": {"type": "string"},
+                "key_pair": {"type": "string"},
+                "iam_role": {"type": "string"},
+                "launch_time": {"type": "string"},
+                "last_maintenance": {"type": "string"},
+                "backup_enabled": {"type": "boolean"},
+                "monitoring_enabled": {"type": "boolean"},
+                "encryption_enabled": {"type": "boolean"},
+                "compliance_standards": {"type": "array", "items": {"type": "string"}},
+                "tags": {"type": "array", "items": {"type": "object"}},
+                "owner": {"type": "string"},
+                "team": {"type": "string"},
+                "project": {"type": "string"},
+                "cost_center": {"type": "string"}
+            },
+            "required": ["resource_id", "resource_type", "cloud_provider", "region", "timestamp", "state"]
+        }
+
+    @staticmethod
     def get_all_schemas() -> Dict[str, Dict]:
         """Get all available schemas"""
         return {
@@ -264,7 +554,13 @@ class SchemaLibrary:
             "education_student": SchemaLibrary.education_student_schema(),
             "hr_employee": SchemaLibrary.hr_employee_schema(),
             "iot_sensor": SchemaLibrary.iot_sensor_data_schema(),
-            "social_media_post": SchemaLibrary.social_media_post_schema()
+            "social_media_post": SchemaLibrary.social_media_post_schema(),
+            "data_pipeline_metadata": SchemaLibrary.data_pipeline_metadata_schema(),
+            "ml_model_training": SchemaLibrary.ml_model_training_schema(),
+            "distributed_system_metrics": SchemaLibrary.distributed_system_metrics_schema(),
+            "real_time_analytics": SchemaLibrary.real_time_analytics_schema(),
+            "data_warehouse_table": SchemaLibrary.data_warehouse_table_schema(),
+            "cloud_infrastructure": SchemaLibrary.cloud_infrastructure_schema()
         }
 
     @staticmethod

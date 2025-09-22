@@ -77,14 +77,20 @@ This provides a menu-driven interface with options:
 # List all available schemas with details
 python3 cli.py list
 
-# Generate data from predefined schema
+# Generate data from predefined schema (JSON format)
 python3 cli.py generate ecommerce_product -n 100 -o products.json
 
+# Generate data in CSV format
+python3 cli.py generate ecommerce_product -n 100 --format csv -o products.csv
+
+# Generate data in JSON-LD format
+python3 cli.py generate ecommerce_product -n 100 --format jsonld -o products.jsonld
+
 # Generate from custom schema file
-python3 cli.py from-file my_schema.json -n 50 -o output.json
+python3 cli.py from-file my_schema.json -n 50 -o output.json --format csv
 
 # Generate from JSON string
-python3 cli.py from-json '{"type":"object","properties":{"id":{"type":"string"}}}' -n 10
+python3 cli.py from-json '{"type":"object","properties":{"id":{"type":"string"}}}' -n 10 --format csv
 
 # Interactive schema builder
 python3 cli.py create
@@ -157,8 +163,14 @@ custom_schema = {
 }
 data = generator.generate_from_schema(custom_schema, 50)
 
-# Convert to JSON-LD
+# Convert to different formats
 json_ld = generator.to_json_ld(data, custom_schema)
+csv_data = generator.to_csv(data)
+
+# Save in different formats
+generator.save_data(data, "output.json", "json")
+generator.save_data(data, "output.csv", "csv")
+generator.save_data(data, "output.jsonld", "jsonld", custom_schema)
 ```
 
 ---
@@ -178,12 +190,13 @@ json_ld = generator.to_json_ld(data, custom_schema)
 - **iot_sensor** - Device readings with timestamps, locations, statuses (17 fields)
 - **social_media_post** - Posts with engagement metrics, hashtags, mentions (21 fields)
 
-### Government Schemas (DWP)
-- **child_benefit** - Child benefit claims (21 fields)
-- **state_pension** - State pension records (25 fields)
-- **universal_credit** - Universal credit claims (33 fields)
-- **esa** - Employment Support Allowance (28 fields)
-- **pip** - Personal Independence Payment (31 fields)
+### Data Engineering Schemas (Perfect for Senior Engineer Demos)
+- **data_pipeline_metadata** - ETL/ELT pipeline execution metrics with lineage tracking (29 fields)
+- **ml_model_training** - Machine learning training jobs with performance metrics (39 fields)
+- **distributed_system_metrics** - Microservice monitoring with SLA compliance (33 fields)
+- **real_time_analytics** - Streaming event processing with fraud detection (37 fields)
+- **data_warehouse_table** - Table metadata with data quality and lineage (42 fields)
+- **cloud_infrastructure** - AWS/Azure/GCP resource monitoring and cost tracking (44 fields)
 
 ---
 
@@ -232,6 +245,42 @@ This guides you through:
 - Configuring constraints
 - Marking required fields
 - Saving for reuse
+
+---
+
+## Output Formats
+
+The generator supports multiple output formats:
+
+### JSON (Default)
+```bash
+python3 cli.py generate ecommerce_product -n 5 --format json
+```
+Standard JSON format with proper formatting and indentation.
+
+### CSV
+```bash
+python3 cli.py generate ecommerce_product -n 5 --format csv
+```
+Comma-separated values format. Nested objects and arrays are serialized as JSON strings within CSV cells.
+
+### JSON-LD
+```bash
+python3 cli.py generate ecommerce_product -n 5 --format jsonld
+```
+JSON-LD (Linked Data) format with semantic context mapping to schema.org vocabulary.
+
+### Format Usage Examples
+```bash
+# Generate data engineering pipeline metrics as CSV for Excel/analysis
+python3 cli.py generate data_pipeline_metadata -n 100 --format csv -o pipeline_metrics.csv
+
+# Generate ML training data as JSON-LD for semantic web applications
+python3 cli.py generate ml_model_training -n 50 --format jsonld -o ml_training.jsonld
+
+# Generate customer data as JSON for APIs and applications
+python3 cli.py generate ecommerce_product -n 1000 --format json -o products.json
+```
 
 ---
 

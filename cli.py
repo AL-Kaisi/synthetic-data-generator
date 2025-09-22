@@ -301,6 +301,113 @@ class InteractiveCLI:
             print(f"Generation failed: {e}")
             return False
 
+    def _generate_from_predefined(self, schema_name: str, num_records: int, output_file: str = None, output_format: str = "json") -> bool:
+        """Generate data from predefined schema with format support"""
+        try:
+            from schemas import SchemaLibrary
+
+            schemas = SchemaLibrary.get_all_schemas()
+            if schema_name not in schemas:
+                print(f"Schema '{schema_name}' not found")
+                print("Available schemas:", ", ".join(schemas.keys()))
+                return False
+
+            schema = schemas[schema_name]
+            print(f"Generating {num_records} records from '{schema_name}' schema...")
+
+            # Generate data
+            data = self.generator.generate_from_schema(schema, num_records)
+            print(f"Generated {len(data)} records successfully")
+
+            # Save data with format support
+            if output_file:
+                saved_file = self.generator.save_data(data, output_file, output_format, schema)
+            else:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                saved_file = self.generator.save_data(data, f"data_{schema_name}_{timestamp}", output_format, schema)
+
+            print(f"Data saved to: {saved_file}")
+
+            # Show sample
+            if data:
+                print("\nSample record:")
+                print(json.dumps(data[0], indent=2))
+
+            return True
+
+        except Exception as e:
+            print(f"Generation failed: {e}")
+            return False
+
+    def _generate_from_file(self, schema_file: str, num_records: int, output_file: str = None, output_format: str = "json") -> bool:
+        """Generate data from schema file with format support"""
+        try:
+            from schemas import SchemaLibrary
+
+            # Load schema from file
+            schema = SchemaLibrary.load_schema(schema_file)
+            schema_name = Path(schema_file).stem
+            print(f"Generating {num_records} records from schema file '{schema_file}'...")
+
+            # Generate data
+            data = self.generator.generate_from_schema(schema, num_records)
+            print(f"Generated {len(data)} records successfully")
+
+            # Save data with format support
+            if output_file:
+                saved_file = self.generator.save_data(data, output_file, output_format, schema)
+            else:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                saved_file = self.generator.save_data(data, f"data_{schema_name}_{timestamp}", output_format, schema)
+
+            print(f"Data saved to: {saved_file}")
+
+            # Show sample
+            if data:
+                print("\nSample record:")
+                print(json.dumps(data[0], indent=2))
+
+            return True
+
+        except Exception as e:
+            print(f"Generation failed: {e}")
+            return False
+
+    def _generate_from_json(self, json_string: str, num_records: int, output_file: str = None, output_format: str = "json") -> bool:
+        """Generate data from JSON string with format support"""
+        try:
+            from schemas import SchemaLibrary
+
+            # Parse JSON schema
+            schema = json.loads(json_string)
+            schema = SchemaLibrary.custom_schema_from_json(schema)
+            schema_name = schema.get("title", "custom")
+            print(f"Generating {num_records} records from JSON schema...")
+
+            # Generate data
+            data = self.generator.generate_from_schema(schema, num_records)
+            print(f"Generated {len(data)} records successfully")
+
+            # Save data with format support
+            if output_file:
+                saved_file = self.generator.save_data(data, output_file, output_format, schema)
+            else:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                saved_file = self.generator.save_data(data, f"data_{schema_name}_{timestamp}", output_format, schema)
+
+            print(f"Data saved to: {saved_file}")
+
+            # Show sample
+            if data:
+                print("\nSample record:")
+                print(json.dumps(data[0], indent=2))
+
+            return True
+
+        except Exception as e:
+            print(f"Generation failed: {e}")
+            return False
+
 
 def main():
     """Main CLI entry point"""
@@ -370,23 +477,17 @@ For more help on specific commands, use: %(prog)s <command> --help
 
     elif args.command == 'generate':
         # Generate from predefined schema
-        from generate_data import DataGeneratorCLI
-        old_cli = DataGeneratorCLI()
-        success = old_cli.generate_from_predefined(args.schema, args.records, args.output)
+        success = cli._generate_from_predefined(args.schema, args.records, args.output, args.format)
         sys.exit(0 if success else 1)
 
     elif args.command == 'from-file':
         # Generate from file
-        from generate_data import DataGeneratorCLI
-        old_cli = DataGeneratorCLI()
-        success = old_cli.generate_from_file(args.file, args.records, args.output)
+        success = cli._generate_from_file(args.file, args.records, args.output, args.format)
         sys.exit(0 if success else 1)
 
     elif args.command == 'from-json':
         # Generate from JSON string
-        from generate_data import DataGeneratorCLI
-        old_cli = DataGeneratorCLI()
-        success = old_cli.generate_from_json(args.json, args.records, args.output)
+        success = cli._generate_from_json(args.json, args.records, args.output, args.format)
         sys.exit(0 if success else 1)
 
     elif args.command == 'create':

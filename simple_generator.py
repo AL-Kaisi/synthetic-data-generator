@@ -226,6 +226,40 @@ class SchemaDataGenerator:
 
         return records
 
+    def to_csv(self, data: List[Dict]) -> str:
+        """Convert data to CSV format"""
+        import csv
+        import io
+
+        if not data:
+            return ""
+
+        # Collect all unique field names from all records
+        all_fieldnames = set()
+        for record in data:
+            all_fieldnames.update(record.keys())
+
+        fieldnames = sorted(list(all_fieldnames))
+
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=fieldnames, quoting=csv.QUOTE_MINIMAL, extrasaction='ignore')
+
+        writer.writeheader()
+        for record in data:
+            # Handle nested objects and arrays by converting to JSON strings
+            csv_record = {}
+            for key in fieldnames:
+                value = record.get(key, "")
+                if isinstance(value, (dict, list)):
+                    csv_record[key] = json.dumps(value) if value else ""
+                else:
+                    csv_record[key] = value if value is not None else ""
+            writer.writerow(csv_record)
+
+        csv_content = output.getvalue()
+        output.close()
+        return csv_content
+
     def to_json_ld(self, data: List[Dict], schema: Dict, context_url: str = None) -> Dict:
         """Convert data to JSON-LD format"""
 
@@ -257,6 +291,43 @@ class SchemaDataGenerator:
             "generatedAt": datetime.now().isoformat(),
             "totalRecords": len(data)
         }
+
+    def save_data(self, data: List[Dict], filename: str, output_format: str = "json", schema: Dict = None):
+        """Save data in the specified format"""
+        from datetime import datetime
+
+        # Generate filename with timestamp if not provided
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"data_{output_format}_{timestamp}.{output_format}"
+
+        # Ensure correct file extension
+        if not filename.endswith(f".{output_format}"):
+            if '.' in filename:
+                filename = filename.rsplit('.', 1)[0] + f".{output_format}"
+            else:
+                filename = f"{filename}.{output_format}"
+
+        if output_format == "json":
+            with open(filename, 'w') as f:
+                json.dump(data, f, indent=2, default=str)
+
+        elif output_format == "csv":
+            csv_content = self.to_csv(data)
+            with open(filename, 'w') as f:
+                f.write(csv_content)
+
+        elif output_format == "jsonld":
+            if schema is None:
+                raise ValueError("Schema is required for JSON-LD format")
+            jsonld_data = self.to_json_ld(data, schema)
+            with open(filename, 'w') as f:
+                json.dump(jsonld_data, f, indent=2, default=str)
+
+        else:
+            raise ValueError(f"Unsupported format: {output_format}")
+
+        return filename
 
 
 def main():
