@@ -545,9 +545,51 @@ class SchemaLibrary:
         }
 
     @staticmethod
+    def discover_custom_schemas() -> Dict[str, Dict]:
+        """
+        Automatically discover and load schema files from custom_schemas directory
+
+        Returns:
+            Dictionary of discovered schemas
+        """
+        import os
+        import glob
+
+        discovered_schemas = {}
+        schema_directories = ["custom_schemas", "schemas"]  # Check both directories
+
+        for schema_dir in schema_directories:
+            if not os.path.exists(schema_dir):
+                continue
+
+            # Find all JSON files in the directory
+            json_files = glob.glob(os.path.join(schema_dir, "*.json"))
+
+            for json_file in json_files:
+                try:
+                    # Get schema name from filename (without extension)
+                    schema_name = os.path.splitext(os.path.basename(json_file))[0]
+
+                    # Skip if already exists (predefined schemas take precedence)
+                    if schema_name in discovered_schemas:
+                        continue
+
+                    # Load and validate schema
+                    schema = SchemaLibrary.load_schema(json_file)
+                    discovered_schemas[schema_name] = schema
+
+                except Exception as e:
+                    # Silently skip invalid schema files
+                    print(f"Warning: Could not load schema file {json_file}: {e}")
+                    continue
+
+        return discovered_schemas
+
+    @staticmethod
     def get_all_schemas() -> Dict[str, Dict]:
-        """Get all available schemas"""
-        return {
+        """Get all available schemas including auto-discovered ones"""
+        # Start with predefined schemas
+        schemas = {
             "ecommerce_product": SchemaLibrary.ecommerce_product_schema(),
             "healthcare_patient": SchemaLibrary.healthcare_patient_schema(),
             "financial_transaction": SchemaLibrary.financial_transaction_schema(),
@@ -562,6 +604,19 @@ class SchemaLibrary:
             "data_warehouse_table": SchemaLibrary.data_warehouse_table_schema(),
             "cloud_infrastructure": SchemaLibrary.cloud_infrastructure_schema()
         }
+
+        # Import DWP schemas if available
+        try:
+            from dwp_schemas import dwp_schemas
+            schemas.update(dwp_schemas)
+        except ImportError:
+            pass
+
+        # Auto-discover custom schema files
+        custom_schemas = SchemaLibrary.discover_custom_schemas()
+        schemas.update(custom_schemas)
+
+        return schemas
 
     @staticmethod
     def custom_schema_from_json(json_schema: Dict) -> Dict:

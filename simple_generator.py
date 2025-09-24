@@ -10,22 +10,45 @@ import string
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
+from faker import Faker
 
 
 class DataGenerator:
     """Simple data generator for various field types"""
 
     def __init__(self):
+        # Initialize Faker for more realistic data
+        self.faker = Faker('en_GB')  # Using UK locale as default
+        Faker.seed(random.randint(0, 10000))  # Random seed for variety
+
+        # Context storage for coherent record generation
+        self.current_record_context = {}
+
+        # Realistic skills and certifications
+        self.tech_skills = [
+            "Python", "JavaScript", "TypeScript", "Java", "C++", "SQL", "NoSQL",
+            "Docker", "Kubernetes", "AWS", "Azure", "GCP", "React", "Angular",
+            "Node.js", "Machine Learning", "Data Analysis", "DevOps", "CI/CD",
+            "Agile", "Scrum", "Git", "REST APIs", "GraphQL", "Microservices"
+        ]
+
+        self.certifications = [
+            "AWS Certified Solutions Architect", "Microsoft Azure Administrator",
+            "Google Cloud Professional", "PMP Certification", "Scrum Master",
+            "ITIL Foundation", "CompTIA Security+", "Cisco CCNA", "Six Sigma",
+            "Data Science Certificate", "Certified Kubernetes Administrator",
+            "Oracle Database Administrator", "Salesforce Administrator"
+        ]
+
+        self.soft_skills = [
+            "Leadership", "Communication", "Problem Solving", "Team Collaboration",
+            "Time Management", "Critical Thinking", "Project Management",
+            "Customer Service", "Presentation Skills", "Negotiation"
+        ]
+
+        # Keep some custom data for specific needs
         self.fake_data = {
-            "first_names": ["James", "Mary", "John", "Patricia", "Robert", "Jennifer",
-                          "Michael", "Linda", "William", "Elizabeth", "David", "Barbara"],
-            "last_names": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia",
-                         "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez"],
-            "cities": ["London", "Manchester", "Birmingham", "Leeds", "Glasgow",
-                      "Sheffield", "Bradford", "Liverpool", "Edinburgh", "Bristol"],
-            "companies": ["Tech Corp", "Global Systems", "Innovation Ltd", "Digital Solutions",
-                        "Modern Enterprises", "Future Technologies", "Smart Industries"],
-            "email_domains": ["gmail.com", "yahoo.com", "hotmail.com", "company.com"]
+            "email_domains": ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "company.com"]
         }
 
     def generate_string(self, field_name: str, schema: Dict) -> str:
@@ -39,58 +62,120 @@ class DataGenerator:
         if "pattern" in schema:
             return self._generate_from_pattern(schema["pattern"])
 
-        # Smart generation based on field name
+        # Smart generation based on field name using Faker
         field_lower = field_name.lower()
         if "first" in field_lower and "name" in field_lower:
-            return random.choice(self.fake_data["first_names"])
+            first_name = self.faker.first_name()
+            self.current_record_context['first_name'] = first_name
+            return first_name
         elif "last" in field_lower and "name" in field_lower:
-            return random.choice(self.fake_data["last_names"])
+            last_name = self.faker.last_name()
+            self.current_record_context['last_name'] = last_name
+            return last_name
+        elif "name" in field_lower and "full" not in field_lower:
+            return self.faker.name()
         elif "city" in field_lower:
-            return random.choice(self.fake_data["cities"])
+            return self.faker.city()
+        elif "address" in field_lower:
+            return self.faker.address().replace('\n', ', ')
+        elif "street" in field_lower:
+            return self.faker.street_address()
+        elif "postcode" in field_lower or "zip" in field_lower:
+            return self.faker.postcode()
+        elif "country" in field_lower:
+            return self.faker.country()
         elif "company" in field_lower or "brand" in field_lower:
-            return random.choice(self.fake_data["companies"])
+            return self.faker.company()
+        elif "job" in field_lower or "position" in field_lower:
+            return self.faker.job()
         elif "email" in field_lower:
-            return self._generate_email()
+            # Generate email based on context (first/last name if available)
+            if 'first_name' in self.current_record_context and 'last_name' in self.current_record_context:
+                first = self.current_record_context['first_name'].lower()
+                last = self.current_record_context['last_name'].lower()
+                domain = random.choice(self.fake_data['email_domains'])
+                email_format = random.choice([
+                    f"{first}.{last}@{domain}",
+                    f"{first}{last}@{domain}",
+                    f"{first[0]}{last}@{domain}",
+                    f"{first}_{last}@{domain}"
+                ])
+                return email_format
+            return self.faker.email()
         elif "phone" in field_lower:
-            return self._generate_phone()
+            return self.faker.phone_number()
         elif "url" in field_lower or "website" in field_lower:
-            return f"https://example-{random.randint(1, 999)}.com"
+            return self.faker.url()
+        elif "username" in field_lower:
+            return self.faker.user_name()
+        elif "description" in field_lower or "summary" in field_lower:
+            return self.faker.text(max_nb_chars=schema.get("maxLength", 200))
+        elif "title" in field_lower and "job" not in field_lower:
+            return self.faker.sentence(nb_words=4).rstrip('.')
+        elif "category" in field_lower:
+            return self.faker.word().capitalize()
+        elif "status" in field_lower:
+            return random.choice(["active", "pending", "completed", "inactive", "archived"])
+        elif "currency" in field_lower:
+            return self.faker.currency_code()
+        elif "iban" in field_lower:
+            return self.faker.iban()
+        elif "isbn" in field_lower:
+            return self.faker.isbn13()
+        elif "ipv4" in field_lower or ("ip" in field_lower and "address" in field_lower):
+            return self.faker.ipv4()
+        elif "mac" in field_lower:
+            return self.faker.mac_address()
+        elif "user_agent" in field_lower:
+            return self.faker.user_agent()
+        elif "color" in field_lower or "colour" in field_lower:
+            return self.faker.color_name()
+        elif "department" in field_lower:
+            return self.faker.bs().title()
         elif "id" in field_lower or field_lower.endswith("_id"):
             return str(uuid.uuid4())
 
-        # Default string generation
+        # Default string generation with Faker
         min_length = schema.get("minLength", 1)
         max_length = schema.get("maxLength", 50)
-        length = random.randint(min_length, min(max_length, 50))
 
-        return ''.join(random.choices(string.ascii_letters + ' ', k=length)).strip()
+        # Use Faker's text generation for better quality
+        if max_length > 20:
+            return self.faker.text(max_nb_chars=max_length)[:max_length]
+        else:
+            return self.faker.lexify('?' * random.randint(min_length, max_length))
 
     def generate_number(self, schema: Dict) -> float:
-        """Generate a number value"""
+        """Generate a number value using Faker for better distributions"""
         if "enum" in schema:
             return random.choice(schema["enum"])
 
         minimum = schema.get("minimum", 0)
         maximum = schema.get("maximum", 1000)
-        value = random.uniform(minimum, maximum)
+
+        # Use Faker's random float for better distribution
+        value = self.faker.random.uniform(minimum, maximum)
 
         decimal_places = schema.get("decimalPlaces", 2)
         return round(value, decimal_places)
 
     def generate_integer(self, schema: Dict) -> int:
-        """Generate an integer value"""
+        """Generate an integer value using Faker"""
         if "enum" in schema:
             return random.choice(schema["enum"])
 
         minimum = schema.get("minimum", 0)
         maximum = schema.get("maximum", 1000)
-        return random.randint(int(minimum), int(maximum))
+
+        # Use Faker's random int for consistency
+        return self.faker.random_int(min=int(minimum), max=int(maximum))
 
     def generate_boolean(self, schema: Dict) -> bool:
-        """Generate a boolean value"""
-        return random.choice([True, False])
+        """Generate a boolean value using Faker"""
+        # Faker can provide weighted boolean generation if needed
+        return self.faker.boolean()
 
-    def generate_array(self, schema: Dict) -> List[Any]:
+    def generate_array(self, schema: Dict, field_name: str = "item") -> List[Any]:
         """Generate an array of values"""
         min_items = schema.get("minItems", 0)
         max_items = schema.get("maxItems", 10)
@@ -99,6 +184,31 @@ class DataGenerator:
         array_size = random.randint(min_items, max_items)
         result = []
 
+        # Generate realistic arrays based on field name
+        field_lower = field_name.lower()
+        if "skill" in field_lower:
+            # Generate realistic skills
+            num_skills = random.randint(min_items or 3, min(max_items, 10))
+            tech_skills = random.sample(self.tech_skills, min(num_skills - 2, len(self.tech_skills)))
+            soft_skills = random.sample(self.soft_skills, min(2, len(self.soft_skills)))
+            return tech_skills + soft_skills
+        elif "certification" in field_lower or "certificate" in field_lower:
+            # Generate realistic certifications
+            num_certs = random.randint(min_items or 1, min(max_items, 5))
+            return random.sample(self.certifications, min(num_certs, len(self.certifications)))
+        elif "tag" in field_lower or "category" in field_lower:
+            # Generate realistic tags/categories
+            tags = [self.faker.word().capitalize() for _ in range(array_size)]
+            return tags
+        elif "course" in field_lower:
+            # Generate course names
+            courses = [
+                f"{self.faker.word().capitalize()} {random.choice(['101', '201', '301', 'Advanced', 'Introduction to'])}"
+                for _ in range(array_size)
+            ]
+            return courses
+
+        # Default array generation
         for _ in range(array_size):
             item_type = items_schema.get("type", "string")
             if item_type == "string":
@@ -123,28 +233,30 @@ class DataGenerator:
         return result
 
     def generate_date(self, field_name: str, schema: Dict) -> str:
-        """Generate a date string"""
+        """Generate a date string using Faker"""
         start_str = schema.get("start", "1970-01-01")
         end_str = schema.get("end", "2030-12-31")
 
         start = datetime.strptime(start_str, "%Y-%m-%d")
         end = datetime.strptime(end_str, "%Y-%m-%d")
 
-        random_date = start + timedelta(days=random.randint(0, (end - start).days))
+        # Use Faker's date_between for more realistic dates
+        random_date = self.faker.date_between(start_date=start, end_date=end)
 
         # Check if field name suggests datetime
         if "timestamp" in field_name.lower() or "datetime" in field_name.lower():
-            time_part = f"{random.randint(0, 23):02d}:{random.randint(0, 59):02d}:{random.randint(0, 59):02d}"
-            return f"{random_date.strftime('%Y-%m-%d')}T{time_part}Z"
+            # Use Faker for time component too
+            time_obj = self.faker.time_object()
+            return f"{random_date.strftime('%Y-%m-%d')}T{time_obj.strftime('%H:%M:%S')}Z"
 
-        return random_date.strftime("%Y-%m-%d")
+        return str(random_date)
 
     def generate_field(self, field_name: str, schema: Dict) -> Any:
         """Generate a value for a single field"""
         field_type = schema.get("type", "string")
 
-        # Check if field name suggests a date (even if type is string)
-        if "date" in field_name.lower() and field_type == "string":
+        # Check if field name suggests a date or timestamp (even if type is string)
+        if ("date" in field_name.lower() or "timestamp" in field_name.lower()) and field_type == "string":
             return self.generate_date(field_name, schema)
 
         # Generate based on type
@@ -157,7 +269,7 @@ class DataGenerator:
         elif field_type == "boolean":
             return self.generate_boolean(schema)
         elif field_type == "array":
-            return self.generate_array(schema)
+            return self.generate_array(schema, field_name)
         elif field_type == "object":
             return self.generate_object(schema)
         else:
@@ -165,15 +277,12 @@ class DataGenerator:
             return self.generate_string(field_name, schema)
 
     def _generate_email(self) -> str:
-        """Generate an email address"""
-        first = random.choice(self.fake_data["first_names"]).lower()
-        last = random.choice(self.fake_data["last_names"]).lower()
-        domain = random.choice(self.fake_data["email_domains"])
-        return f"{first}.{last}@{domain}"
+        """Generate an email address using Faker"""
+        return self.faker.email()
 
     def _generate_phone(self) -> str:
-        """Generate a phone number"""
-        return f"+1-{random.randint(100, 999)}-{random.randint(100, 999)}-{random.randint(1000, 9999)}"
+        """Generate a phone number using Faker"""
+        return self.faker.phone_number()
 
     def _generate_from_pattern(self, pattern: str) -> str:
         """Generate string from common patterns"""
@@ -213,9 +322,19 @@ class SchemaDataGenerator:
 
         records = []
         for _ in range(num_records):
+            # Reset context for each new record
+            self.generator.current_record_context = {}
             record = {}
 
-            for field_name, field_schema in properties.items():
+            # Process fields in order to ensure names come before email
+            ordered_fields = sorted(properties.items(), key=lambda x: (
+                0 if 'first_name' in x[0].lower() else
+                1 if 'last_name' in x[0].lower() else
+                2 if 'email' in x[0].lower() else
+                3
+            ))
+
+            for field_name, field_schema in ordered_fields:
                 # Skip optional fields sometimes (10% chance)
                 if field_name not in required_fields and random.random() < 0.1:
                     continue

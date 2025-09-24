@@ -34,7 +34,8 @@ python3 cli.py from-file my_schema.json -n 50 --format csv
 - **Universal Schema Support**: Works with ANY valid JSON schema
 - **Zero Dependencies**: Pure Python standard library (PySpark optional for massive datasets)
 - **Interactive CLI**: Menu-driven interface for beginners
-- **13+ Predefined Templates**: E-commerce, healthcare, finance, education, HR, IoT, social media, data engineering
+- **18+ Predefined Templates**: E-commerce, healthcare, finance, education, HR, IoT, social media, data engineering, DWP
+- **Auto-Discovery**: Drop JSON schema files into `custom_schemas/` directory and they're automatically available
 - **Smart Data Generation**: Context-aware realistic data
 - **Safety Features**: Test-safe generation for sensitive data (NINO, etc.)
 - **High Performance**: 10K+ records/second (standard), millions with PySpark
@@ -67,6 +68,9 @@ python3 cli.py generate ecommerce_product -n 10000000 --spark
 
 # Generate to Parquet format with custom Spark settings
 python3 cli.py generate data_pipeline_metadata -n 5000000 --spark --format parquet --spark-memory 8g
+
+# Use auto-discovered custom schema (just drop schema file in custom_schemas/)
+python3 cli.py generate customer -n 1000 --format csv
 
 # Interactive schema builder
 python3 cli.py create

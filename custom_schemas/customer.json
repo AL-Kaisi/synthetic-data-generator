@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "title": "Customer",
+  "properties": {
+    "customer_id": {
+      "type": "string"
+    },
+    "first_name": {
+      "type": "string",
+      "maxLength": 50
+    },
+    "last_name": {
+      "type": "string",
+      "maxLength": 50
+    },
+    "email": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "date_of_birth": {
+      "type": "string",
+      "start": "1960-01-01",
+      "end": "2005-12-31"
+    },
+    "subscription_tier": {
+      "type": "string",
+      "enum": ["Free", "Premium", "Enterprise"]
+    },
+    "total_spent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10000,
+      "decimalPlaces": 2
+    },
+    "is_active": {
+      "type": "boolean"
+    },
+    "registration_date": {
+      "type": "string",
+      "start": "2020-01-01",
+      "end": "2024-12-31"
+    }
+  },
+  "required": ["customer_id", "first_name", "last_name", "email"]
+}

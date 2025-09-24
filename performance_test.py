@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from typing import Dict, List
 from simple_generator import SchemaDataGenerator
-from dwp_schemas import dwp_schemas
+from schemas import SchemaLibrary
 
 class PerformanceTester:
     """Test data generation performance across different scenarios"""
@@ -87,8 +87,11 @@ class PerformanceTester:
 
     def run_comprehensive_benchmark(self) -> Dict:
         """Run comprehensive performance tests"""
+        # Get all available schemas
+        all_schemas = SchemaLibrary.get_all_schemas()
+
         print("Starting comprehensive performance benchmark...")
-        print(f"Testing {len(dwp_schemas)} DWP schemas")
+        print(f"Testing {len(all_schemas)} schemas")
         print(f"System: {psutil.cpu_count()} CPUs, {psutil.virtual_memory().total / 1024**3:.1f}GB RAM")
 
         # Test different record counts (matching DWP tool capabilities)
@@ -107,7 +110,7 @@ class PerformanceTester:
         }
 
         # Test each schema
-        for schema_name, schema in dwp_schemas.items():
+        for schema_name, schema in all_schemas.items():
             schema_results = self.test_schema_performance(schema_name, schema, record_counts)
             benchmark_results["schemas_tested"].append(schema_results)
 

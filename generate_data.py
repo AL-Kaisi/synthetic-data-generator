@@ -32,7 +32,7 @@ class DataGeneratorCLI:
             props = len(schema.get("properties", {}))
             required = len(schema.get("required", []))
 
-            print(f"  • {name}")
+            print(f"  - {name}")
             print(f"    Title: {title}")
             print(f"    Properties: {props} fields ({required} required)")
             print()
