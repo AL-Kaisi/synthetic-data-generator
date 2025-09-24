@@ -306,23 +306,3 @@ python3 test_faker_integration.py
 python3 simple_performance_test.py
 ```
 
-## Documentation
-
-- **[Complete Guide](COMPLETE_GUIDE.md)** - Full documentation with advanced examples
-- **[Senior Engineer Q&A](SENIOR_ENGINEER_QA.md)** - Technical deep dive
-- **[Custom Schemas Guide](custom_schemas/README.md)** - Creating custom schemas
-
-## Requirements
-
-- Python 3.7+
-- Faker library (for realistic data)
-- Optional: PySpark (for massive datasets)
-- Optional: pytest, pytest-bdd (for testing)
-
-## License
-
-MIT License - Use freely in your projects.
-
----
-
-*Professional synthetic data generation made simple. Generate realistic test data from any JSON schema with a powerful, intuitive command-line interface.*
