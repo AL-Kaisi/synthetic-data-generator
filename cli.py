@@ -13,7 +13,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 from simple_generator import SchemaDataGenerator
-from schemas import SchemaLibrary
+from schemas import SchemaLibrary, RelationalSchemaSupport
+from relational_generator import RelationalDataGenerator, create_dwp_relational_config
 
 
 class InteractiveCLI:
@@ -35,11 +36,12 @@ class InteractiveCLI:
             print("1. Generate from predefined schema")
             print("2. Generate from custom JSON schema")
             print("3. Create schema interactively")
-            print("4. List available schemas")
-            print("5. Exit")
+            print("4. Generate relational data (DWP/linked schemas)")
+            print("5. List available schemas")
+            print("6. Exit")
             print()
 
-            choice = input("Enter your choice (1-5): ").strip()
+            choice = input("Enter your choice (1-6): ").strip()
 
             if choice == "1":
                 self._interactive_predefined()
@@ -48,12 +50,14 @@ class InteractiveCLI:
             elif choice == "3":
                 self._interactive_builder()
             elif choice == "4":
-                self._list_schemas()
+                self._interactive_relational()
             elif choice == "5":
+                self._list_schemas()
+            elif choice == "6":
                 print("Goodbye!")
                 break
             else:
-                print("Invalid choice. Please enter 1-5.")
+                print("Invalid choice. Please enter 1-6.")
 
             print()
 
@@ -271,6 +275,182 @@ class InteractiveCLI:
                 if len(properties) > 5:
                     preview.append("...")
                 print(f"  Sample fields: {', '.join(preview)}")
+
+    def _interactive_relational(self):
+        """Interactive relational data generation"""
+        print("\nRelational Data Generation")
+        print("=" * 50)
+
+        # Check for available relational schemas
+        relational_schemas = RelationalSchemaSupport.get_relational_schemas()
+
+        print("Available options:")
+        print("1. Generate DWP relational data (predefined)")
+        print("2. Use custom relational schema")
+
+        if relational_schemas:
+            print("3. Use discovered relational schemas")
+
+        choice = input("\nEnter your choice: ").strip()
+
+        if choice == "1":
+            self._generate_dwp_relational()
+        elif choice == "2":
+            self._generate_custom_relational()
+        elif choice == "3" and relational_schemas:
+            self._generate_discovered_relational(relational_schemas)
+        else:
+            print("Invalid choice.")
+
+    def _generate_dwp_relational(self):
+        """Generate DWP relational data using predefined configuration"""
+        print("\nGenerating DWP Relational Data...")
+        print("This will create linked data across citizens, benefits, and claims")
+
+        try:
+            # Get number of base citizens
+            num_citizens = int(input("Number of base citizens (default: 500): ") or "500")
+
+            # Create relational generator
+            generator = RelationalDataGenerator()
+
+            # Get DWP configuration and adjust citizen count
+            config = create_dwp_relational_config()
+            config['citizens']['count'] = num_citizens
+
+            # Adjust other counts proportionally
+            config['child_benefit']['count'] = int(num_citizens * 0.3)  # 30% have child benefit
+            config['universal_credit']['count'] = int(num_citizens * 0.2)  # 20% have UC
+            config['pip']['count'] = int(num_citizens * 0.15)  # 15% have PIP
+            config['state_pension']['count'] = int(num_citizens * 0.1)  # 10% have pension
+
+            print(f"\nGenerating:")
+            for schema_name, schema_config in config.items():
+                count = schema_config['count']
+                description = schema_config.get('description', '')
+                print(f"  - {schema_name}: {count} records ({description})")
+
+            # Generate relational data
+            data = generator.generate_relational_data(config)
+
+            # Save data to separate files
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_filename = f"dwp_relational_{timestamp}"
+
+            print(f"\nSaving relational data...")
+            for schema_name, records in data.items():
+                filename = f"{base_filename}_{schema_name}.json"
+                with open(filename, 'w') as f:
+                    json.dump(records, f, indent=2)
+                print(f"Saved {len(records)} {schema_name} records to {filename}")
+
+            # Show relationships summary
+            print(f"\nRelationship Summary:")
+            if 'citizens' in data and 'child_benefit' in data:
+                citizens_with_cb = len(set(cb.get('nino') for cb in data['child_benefit'] if cb.get('nino')))
+                print(f"  - {citizens_with_cb} citizens have child benefit claims")
+
+            if 'citizens' in data and 'universal_credit' in data:
+                citizens_with_uc = len(set(uc.get('nino') for uc in data['universal_credit'] if uc.get('nino')))
+                print(f"  - {citizens_with_uc} citizens have universal credit claims")
+
+            print(f"\nRelational data generated successfully!")
+
+        except ValueError:
+            print("Invalid number entered.")
+        except Exception as e:
+            print(f"Error generating relational data: {e}")
+
+    def _generate_custom_relational(self):
+        """Generate relational data from custom schema file"""
+        print("\nCustom Relational Schema")
+        print("Place your relational schema JSON file in the custom_schemas/ directory")
+        print("It should have 'type': 'relational' and define schemas and relationships")
+
+        schema_file = input("Enter relational schema filename: ").strip()
+        if not schema_file.endswith('.json'):
+            schema_file += '.json'
+
+        try:
+            from relational_generator import RelationalSchemaLoader
+
+            file_path = f"custom_schemas/{schema_file}"
+            if not os.path.exists(file_path):
+                print(f"File not found: {file_path}")
+                return
+
+            # Load relational schema
+            config = RelationalSchemaLoader.load_relational_schema(file_path)
+
+            # Create generator and generate data
+            generator = RelationalDataGenerator()
+
+            # Convert relational schema format to generator config
+            schema_config = {}
+            for schema_name, schema_def in config['schemas'].items():
+                schema_config[schema_name] = {
+                    'count': schema_def.get('count', 100),
+                    'schema': schema_def,
+                    'description': schema_def.get('description', '')
+                }
+
+            # Generate data
+            data = generator.generate_relational_data(schema_config)
+
+            # Save data
+            base_filename = f"custom_relational_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            RelationalSchemaLoader.save_relational_data(data, base_filename)
+
+            print("Custom relational data generated successfully!")
+
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def _generate_discovered_relational(self, relational_schemas):
+        """Generate data from discovered relational schemas"""
+        print("\nDiscovered Relational Schemas:")
+
+        schema_list = list(relational_schemas.keys())
+        for i, schema_name in enumerate(schema_list, 1):
+            schema = relational_schemas[schema_name]
+            title = schema.get('title', schema_name)
+            description = schema.get('description', 'No description')
+            print(f"{i}. {schema_name} - {title}")
+            print(f"   {description}")
+
+        try:
+            choice = int(input(f"\nSelect schema (1-{len(schema_list)}): ")) - 1
+            if 0 <= choice < len(schema_list):
+                selected_schema = schema_list[choice]
+                config = relational_schemas[selected_schema]
+
+                # Generate using the selected relational schema
+                generator = RelationalDataGenerator()
+
+                # Convert format
+                schema_config = {}
+                for schema_name, schema_def in config['schemas'].items():
+                    schema_config[schema_name] = {
+                        'count': schema_def.get('count', 100),
+                        'schema': schema_def
+                    }
+
+                data = generator.generate_relational_data(schema_config)
+
+                # Save data
+                base_filename = f"{selected_schema}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                for schema_name, records in data.items():
+                    filename = f"{base_filename}_{schema_name}.json"
+                    with open(filename, 'w') as f:
+                        json.dump(records, f, indent=2)
+                    print(f"Saved {len(records)} {schema_name} records to {filename}")
+
+                print("Relational data generated successfully!")
+            else:
+                print("Invalid choice.")
+
+        except ValueError:
+            print("Invalid number entered.")
 
     def _generate_and_save(self, schema: Dict, num_records: int, output_file: str, schema_name: str):
         """Generate data and save to file"""

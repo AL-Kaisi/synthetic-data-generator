@@ -778,4 +778,129 @@ def create_custom_schema_builder():
             """Build and return the schema"""
             return self.schema
 
+
+class RelationalSchemaSupport:
+    """Support for relational schemas in the schema library"""
+
+    @staticmethod
+    def get_relational_schemas() -> Dict[str, Dict]:
+        """Get all discovered relational schemas"""
+        if not hasattr(SchemaLibrary, '_relational_schemas'):
+            SchemaLibrary._relational_schemas = {}
+            # Discover relational schemas from custom_schemas directory
+            RelationalSchemaSupport._discover_relational_schemas()
+        return getattr(SchemaLibrary, '_relational_schemas', {})
+
+    @staticmethod
+    def is_relational_schema(schema_name: str) -> bool:
+        """Check if a schema is a relational schema"""
+        relational_schemas = RelationalSchemaSupport.get_relational_schemas()
+        return schema_name in relational_schemas
+
+    @staticmethod
+    def _discover_relational_schemas():
+        """Discover relational schemas from custom_schemas directory"""
+        import os
+        import json
+
+        schema_dir = "custom_schemas"
+        if not os.path.exists(schema_dir):
+            return
+
+        for filename in os.listdir(schema_dir):
+            if filename.endswith('.json'):
+                file_path = os.path.join(schema_dir, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        schema_data = json.load(f)
+
+                    # Check if it's a relational schema
+                    if schema_data.get('type') == 'relational':
+                        schema_name = os.path.splitext(filename)[0]
+                        if not hasattr(SchemaLibrary, '_relational_schemas'):
+                            SchemaLibrary._relational_schemas = {}
+                        SchemaLibrary._relational_schemas[schema_name] = schema_data
+
+                except Exception as e:
+                    print(f"Warning: Could not load relational schema from {file_path}: {e}")
+                    continue
+
+
+def create_custom_schema_builder():
+    """Create a new schema builder instance"""
+    class SchemaBuilder:
+        def __init__(self):
+            self.schema = {
+                "type": "object",
+                "title": "",
+                "properties": {},
+                "required": []
+            }
+
+        def set_title(self, title: str):
+            """Set the schema title"""
+            self.schema["title"] = title
+            return self
+
+        def add_string_field(self, name: str, **kwargs):
+            """Add a string field"""
+            field = {"type": "string"}
+            if "pattern" in kwargs:
+                field["pattern"] = kwargs["pattern"]
+            if "maxLength" in kwargs:
+                field["maxLength"] = kwargs["maxLength"]
+            self.schema["properties"][name] = field
+            return self
+
+        def add_integer_field(self, name: str, **kwargs):
+            """Add an integer field"""
+            field = {"type": "integer"}
+            if "minimum" in kwargs:
+                field["minimum"] = kwargs["minimum"]
+            if "maximum" in kwargs:
+                field["maximum"] = kwargs["maximum"]
+            self.schema["properties"][name] = field
+            return self
+
+        def add_boolean_field(self, name: str):
+            """Add a boolean field"""
+            self.schema["properties"][name] = {"type": "boolean"}
+            return self
+
+        def add_array_field(self, name: str, item_type: str = "string"):
+            """Add an array field"""
+            self.schema["properties"][name] = {
+                "type": "array",
+                "items": {"type": item_type}
+            }
+            return self
+
+        def add_object_field(self, name: str, properties: Dict):
+            """Add a nested object field"""
+            self.schema["properties"][name] = {
+                "type": "object",
+                "properties": properties
+            }
+            return self
+
+        def add_date_field(self, name: str, start: str = None, end: str = None):
+            """Add a date field"""
+            field = {"type": "string"}
+            if start:
+                field["start"] = start
+            if end:
+                field["end"] = end
+
+            self.schema["properties"][name] = field
+            return self
+
+        def set_required(self, *field_names):
+            """Set required fields"""
+            self.schema["required"] = list(field_names)
+            return self
+
+        def build(self) -> Dict:
+            """Build and return the schema"""
+            return self.schema
+
     return SchemaBuilder()

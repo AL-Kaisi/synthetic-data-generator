@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "relational",
+  "title": "DWP Benefits Relational Schema",
+  "description": "Example relational schema showing linked DWP benefits data",
+  "schemas": {
+    "citizens": {
+      "type": "object",
+      "title": "UKCitizen",
+      "properties": {
+        "citizen_id": {"type": "string"},
+        "nino": {"type": "string", "pattern": "^[A-Z]{2}[0-9]{6}[A-D]$"},
+        "first_name": {"type": "string"},
+        "last_name": {"type": "string"},
+        "date_of_birth": {"type": "string", "start": "1940-01-01", "end": "2000-12-31"},
+        "gender": {"type": "string", "enum": ["Male", "Female", "Other"]},
+        "address_line_1": {"type": "string"},
+        "city": {"type": "string"},
+        "postcode": {"type": "string"},
+        "email": {"type": "string"},
+        "phone": {"type": "string"},
+        "marital_status": {"type": "string", "enum": ["Single", "Married", "Divorced", "Widowed"]}
+      },
+      "required": ["citizen_id", "nino", "first_name", "last_name"],
+      "count": 500
+    },
+    "households": {
+      "type": "object",
+      "title": "Household",
+      "properties": {
+        "household_id": {"type": "string"},
+        "head_of_household_nino": {"type": "string"},
+        "address_line_1": {"type": "string"},
+        "city": {"type": "string"},
+        "postcode": {"type": "string"},
+        "household_size": {"type": "integer", "minimum": 1, "maximum": 8},
+        "household_type": {"type": "string", "enum": ["Single", "Couple", "Family", "Shared"]},
+        "total_household_income": {"type": "number", "minimum": 0, "maximum": 100000}
+      },
+      "count": 300
+    },
+    "benefit_claims": {
+      "type": "object",
+      "title": "BenefitClaim",
+      "properties": {
+        "claim_id": {"type": "string"},
+        "claimant_nino": {"type": "string"},
+        "household_id": {"type": "string"},
+        "benefit_type": {"type": "string", "enum": ["Child_Benefit", "Universal_Credit", "PIP", "JSA", "ESA"]},
+        "claim_date": {"type": "string", "start": "2020-01-01", "end": "2024-12-31"},
+        "weekly_amount": {"type": "number", "minimum": 20, "maximum": 500, "decimalPlaces": 2},
+        "claim_status": {"type": "string", "enum": ["Active", "Suspended", "Closed", "Under_Review"]},
+        "payment_method": {"type": "string", "enum": ["Bank_Transfer", "Giro", "Post_Office"]}
+      },
+      "count": 800
+    }
+  },
+  "relationships": [
+    {
+      "parent": "citizens",
+      "parent_key": "nino",
+      "child": "households",
+      "child_key": "head_of_household_nino",
+      "type": "one_to_one",
+      "description": "Each household has one head of household"
+    },
+    {
+      "parent": "citizens",
+      "parent_key": "nino",
+      "child": "benefit_claims",
+      "child_key": "claimant_nino",
+      "type": "one_to_many",
+      "description": "Citizens can have multiple benefit claims"
+    },
+    {
+      "parent": "households",
+      "parent_key": "household_id",
+      "child": "benefit_claims",
+      "child_key": "household_id",
+      "type": "one_to_many",
+      "description": "Households can have multiple benefit claims"
+    }
+  ],
+  "generation_config": {
+    "maintain_referential_integrity": true,
+    "allow_orphan_records": false,
+    "relationship_probability": 0.7
+  }
+}
