@@ -605,16 +605,13 @@ class InteractiveCLI:
                 if not SPARK_AVAILABLE:
                     print("\nPySpark is not installed. For massive dataset generation (1M+ records), install PySpark:")
                     print("pip install pyspark")
-                    print("\nFalling back to standard generation (may be slow for large datasets)...")
+                    print("\nFalling back to chunked generation...")
+                    return self._generate_chunked_fallback(schema_name, schema, num_records, output_file, output_format)
 
-                    # Fallback to standard generation
-                    if schema_name:
-                        return self._generate_from_predefined(schema_name, num_records, output_file, "json")
-                    else:
-                        return False
             except ImportError:
                 print("\nPySpark module not found. Install with: pip install pyspark")
-                return False
+                print("Falling back to chunked generation...")
+                return self._generate_chunked_fallback(schema_name, schema, num_records, output_file, output_format)
 
             from schemas import SchemaLibrary
 
@@ -668,8 +665,129 @@ class InteractiveCLI:
             return True
 
         except Exception as e:
+            error_msg = str(e)
             print(f"Spark generation failed: {e}")
-            print("Try reducing the number of records or increasing memory allocation")
+
+            # Check for common Spark issues
+            if "JAVA_GATEWAY_EXITED" in error_msg or "Java gateway" in error_msg:
+                print("\nIssue: Java Runtime not found or incompatible")
+                print("Solutions:")
+                print("  1. Install Java: https://adoptopenjdk.net/")
+                print("  2. Set JAVA_HOME environment variable")
+                print("\nFalling back to chunked generation...")
+                return self._generate_chunked_fallback(schema_name, schema, num_records, output_file, output_format)
+
+            elif "py4j" in error_msg:
+                print("\nIssue: PySpark communication error")
+                print("Solutions:")
+                print("  1. Restart your terminal/IDE")
+                print("  2. Try: pip uninstall pyspark && pip install pyspark")
+                print("\nFalling back to chunked generation...")
+                return self._generate_chunked_fallback(schema_name, schema, num_records, output_file, output_format)
+
+            else:
+                print("Try reducing the number of records or increasing memory allocation")
+                print("\nFalling back to chunked generation...")
+                return self._generate_chunked_fallback(schema_name, schema, num_records, output_file, output_format)
+
+    def _generate_chunked_fallback(self, schema_name: str, schema: Dict, num_records: int,
+                                 output_file: str, output_format: str) -> bool:
+        """Fallback method for large dataset generation without Spark"""
+        print(f"\nGenerating {num_records:,} records using chunked approach...")
+
+        try:
+            from schemas import SchemaLibrary
+
+            # Get schema if needed
+            if schema_name and not schema:
+                schemas = SchemaLibrary.get_all_schemas()
+                if schema_name not in schemas:
+                    print(f"Schema '{schema_name}' not found")
+                    return False
+                schema = schemas[schema_name]
+
+            # Determine chunk size based on total records
+            if num_records >= 10000000:  # 10M+
+                chunk_size = 100000
+            elif num_records >= 1000000:  # 1M+
+                chunk_size = 50000
+            else:
+                chunk_size = 10000
+
+            print(f"Using chunk size: {chunk_size:,} records")
+
+            # Calculate number of chunks
+            num_chunks = (num_records + chunk_size - 1) // chunk_size
+
+            # Generate output filename if not provided
+            if not output_file:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                name = schema_name or "custom"
+                if output_format == "json":
+                    output_file = f"large_dataset_{name}_{timestamp}.json"
+                elif output_format == "csv":
+                    output_file = f"large_dataset_{name}_{timestamp}.csv"
+                else:
+                    output_file = f"large_dataset_{name}_{timestamp}.{output_format}"
+
+            print(f"Generating {num_chunks} chunks to: {output_file}")
+
+            # Initialize progress tracking
+            total_generated = 0
+            all_data = []
+
+            # Generate data in chunks
+            for chunk_num in range(num_chunks):
+                # Calculate records for this chunk
+                remaining_records = num_records - total_generated
+                current_chunk_size = min(chunk_size, remaining_records)
+
+                print(f"\rGenerating chunk {chunk_num + 1}/{num_chunks} ({current_chunk_size:,} records)...", end="", flush=True)
+
+                # Generate chunk
+                chunk_data = self.generator.generate_from_schema(schema, current_chunk_size)
+
+                if output_format == "json":
+                    all_data.extend(chunk_data)
+                elif output_format == "csv":
+                    if chunk_num == 0:
+                        # First chunk - write header and data
+                        csv_content = self.generator.to_csv(chunk_data)
+                        with open(output_file, 'w') as f:
+                            f.write(csv_content)
+                    else:
+                        # Subsequent chunks - append data only (no header)
+                        csv_content = self.generator.to_csv(chunk_data)
+                        lines = csv_content.split('\n')
+                        with open(output_file, 'a') as f:
+                            f.write('\n'.join(lines[1:]))  # Skip header
+
+                total_generated += current_chunk_size
+
+                # Optional: memory management for very large datasets
+                if len(all_data) > 500000:  # If accumulating too much in memory
+                    print("\nWarning: Large dataset detected. Consider using Spark for better performance.")
+
+            print()  # New line after progress
+
+            # Save final data for JSON format
+            if output_format == "json":
+                print(f"Writing {len(all_data):,} records to file...")
+                with open(output_file, 'w') as f:
+                    json.dump(all_data, f, indent=2)
+
+            print(f"\nSuccessfully generated {total_generated:,} records")
+            print(f"Data saved to: {output_file}")
+
+            # Show sample record
+            if all_data:
+                print("\nSample record:")
+                print(json.dumps(all_data[0], indent=2))
+
+            return True
+
+        except Exception as e:
+            print(f"\nChunked generation failed: {e}")
             return False
 
 
