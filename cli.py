@@ -17,6 +17,45 @@ from schemas import SchemaLibrary, RelationalSchemaSupport
 from relational_generator import RelationalDataGenerator, create_dwp_relational_config
 
 
+def create_organized_output_path(schema_name: str, output_format: str, num_records: int, custom_filename: str = None) -> str:
+    """Create an organized output path with proper folder structure and naming"""
+    from datetime import datetime
+    import os
+
+    # Create base output directory
+    base_dir = "generated_data"
+
+    # Create date-based subdirectory
+    today = datetime.now()
+    date_dir = today.strftime("%Y/%m-%B")  # e.g., "2024/09-September"
+
+    # Create full directory path
+    full_dir = os.path.join(base_dir, date_dir, schema_name)
+    os.makedirs(full_dir, exist_ok=True)
+
+    # Create filename with proper naming convention
+    if custom_filename:
+        # Use custom filename but ensure it's in the right directory
+        filename = custom_filename
+        if not filename.endswith(f'.{output_format}'):
+            filename += f'.{output_format}'
+    else:
+        # Generate descriptive filename
+        timestamp = today.strftime("%Y%m%d_%H%M%S")
+
+        # Determine scale suffix
+        if num_records >= 1000000:
+            scale = f"{num_records//1000000}M"
+        elif num_records >= 1000:
+            scale = f"{num_records//1000}K"
+        else:
+            scale = str(num_records)
+
+        filename = f"{schema_name}_{scale}_records_{timestamp}.{output_format}"
+
+    return os.path.join(full_dir, filename)
+
+
 class InteractiveCLI:
     """Interactive command-line interface for data generation"""
 
@@ -333,16 +372,14 @@ class InteractiveCLI:
             # Generate relational data
             data = generator.generate_relational_data(config)
 
-            # Save data to separate files
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base_filename = f"dwp_relational_{timestamp}"
-
+            # Save data to organized directories
             print(f"\nSaving relational data...")
             for schema_name, records in data.items():
-                filename = f"{base_filename}_{schema_name}.json"
-                with open(filename, 'w') as f:
+                # Create organized path for each schema in the relational set
+                organized_path = create_organized_output_path(f"dwp_relational/{schema_name}", "json", len(records))
+                with open(organized_path, 'w') as f:
                     json.dump(records, f, indent=2)
-                print(f"Saved {len(records)} {schema_name} records to {filename}")
+                print(f"Saved {len(records)} {schema_name} records to {organized_path}")
 
             # Show relationships summary
             print(f"\nRelationship Summary:")
@@ -453,7 +490,7 @@ class InteractiveCLI:
             print("Invalid number entered.")
 
     def _generate_and_save(self, schema: Dict, num_records: int, output_file: str, schema_name: str):
-        """Generate data and save to file"""
+        """Generate data and save to file with organized structure"""
         print(f"\nGenerating {num_records} records from '{schema_name}' schema...")
 
         try:
@@ -461,8 +498,14 @@ class InteractiveCLI:
             data = self.generator.generate_from_schema(schema, num_records)
             print(f"Generated {len(data)} records successfully")
 
+            # Create organized output path
+            if output_file:
+                organized_path = create_organized_output_path(schema_name, "json", num_records, output_file)
+            else:
+                organized_path = create_organized_output_path(schema_name, "json", num_records)
+
             # Save data
-            output_path = Path(output_file)
+            output_path = Path(organized_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(output_path, 'w') as f:
@@ -482,7 +525,7 @@ class InteractiveCLI:
             return False
 
     def _generate_from_predefined(self, schema_name: str, num_records: int, output_file: str = None, output_format: str = "json") -> bool:
-        """Generate data from predefined schema with format support"""
+        """Generate data from predefined schema with organized output structure"""
         try:
             from schemas import SchemaLibrary
 
@@ -499,12 +542,15 @@ class InteractiveCLI:
             data = self.generator.generate_from_schema(schema, num_records)
             print(f"Generated {len(data)} records successfully")
 
-            # Save data with format support
+            # Save data with organized path structure
             if output_file:
-                saved_file = self.generator.save_data(data, output_file, output_format, schema)
+                # Use organized path even for custom filenames
+                organized_path = create_organized_output_path(schema_name, output_format, num_records, output_file)
+                saved_file = self.generator.save_data(data, organized_path, output_format, schema)
             else:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                saved_file = self.generator.save_data(data, f"data_{schema_name}_{timestamp}", output_format, schema)
+                # Generate organized path automatically
+                organized_path = create_organized_output_path(schema_name, output_format, num_records)
+                saved_file = self.generator.save_data(data, organized_path, output_format, schema)
 
             print(f"Data saved to: {saved_file}")
 
@@ -719,16 +765,15 @@ class InteractiveCLI:
             # Calculate number of chunks
             num_chunks = (num_records + chunk_size - 1) // chunk_size
 
-            # Generate output filename if not provided
-            if not output_file:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                name = schema_name or "custom"
-                if output_format == "json":
-                    output_file = f"large_dataset_{name}_{timestamp}.json"
-                elif output_format == "csv":
-                    output_file = f"large_dataset_{name}_{timestamp}.csv"
-                else:
-                    output_file = f"large_dataset_{name}_{timestamp}.{output_format}"
+            # Generate organized output path
+            if output_file:
+                # Use organized path even for custom filenames
+                organized_path = create_organized_output_path(schema_name or "large_dataset", output_format, num_records, output_file)
+            else:
+                # Generate organized path automatically
+                organized_path = create_organized_output_path(schema_name or "large_dataset", output_format, num_records)
+
+            output_file = organized_path
 
             print(f"Generating {num_chunks} chunks to: {output_file}")
 
