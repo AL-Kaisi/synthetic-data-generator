@@ -12,6 +12,8 @@ A powerful, flexible command-line tool that creates realistic test data from ANY
 - **20+ Predefined Templates**: E-commerce, healthcare, finance, education, HR, IoT, social media, data engineering, DWP
 - **Auto-Discovery**: Drop JSON/YAML schema files into `custom_schemas/` directory - instantly available
 - **Context-Aware Generation**: Emails match names, realistic skills and certifications
+- **Relational Data Support**: Generate complex relational datasets with foreign key relationships
+- **Organized Output**: Automatic date-based folder structure with descriptive naming
 - **Multiple Output Formats**: JSON, CSV, JSON-LD, Parquet (with PySpark)
 - **Massive Dataset Support**: Generate billions of records using PySpark
 - **High Performance**: 10K-20K+ records/second (standard), millions with PySpark
@@ -61,6 +63,8 @@ python3 cli.py generate ecommerce_product -n 1000 --format csv
 ```bash
 # Generate employee records as JSON (default)
 python3 cli.py generate hr_employee -n 50
+
+# Output location: generated_data/2025/09-September/hr_employee/hr_employee_50_records_20250926_143022.json
 
 # Output sample:
 # {
@@ -205,6 +209,50 @@ python3 cli.py generate healthcare_patient -n 10000 | gzip > patients.json.gz
 python3 generate_data.py --list-schemas  # See all fields
 python3 cli.py generate hr_employee -n 50 --format csv | cut -d',' -f1,2,3  # Extract specific columns
 ```
+
+### 11. Relational Data Generation
+
+```bash
+# Interactive mode - Option 4
+python3 cli.py
+# Choose "4. Generate DWP Relational Data"
+
+# Generates related tables with foreign key relationships:
+# - citizens table (base records)
+# - households table (linked to citizens)
+# - benefit_claims table (linked to both)
+
+# Output structure:
+# generated_data/
+#   └── 2025/
+#       └── 09-September/
+#           └── dwp_relational/
+#               ├── citizens/
+#               ├── households/
+#               └── benefit_claims/
+```
+
+### 12. Organized Output Structure
+
+All generated data is automatically organized in a date-based folder structure:
+
+```
+generated_data/
+├── 2025/
+│   └── 09-September/
+│       ├── hr_employee/
+│       │   ├── hr_employee_1K_records_20250926_143022.json
+│       │   └── hr_employee_10K_records_20250926_145512.csv
+│       ├── ecommerce_product/
+│       │   └── ecommerce_product_5K_records_20250926_150033.json
+│       └── financial_transaction/
+│           └── financial_transaction_1M_records_20250926_151245.parquet
+```
+
+**Naming Convention:**
+- Small datasets: `schema_name_100_records_timestamp.format`
+- Thousands: `schema_name_5K_records_timestamp.format`
+- Millions: `schema_name_1M_records_timestamp.format`
 
 ## Available Predefined Schemas
 
