@@ -136,6 +136,22 @@ generated_data_*.json
 generated_data_*.jsonld
 benchmark_results_*.json
 
+# Generated data directories (keep directory structure but ignore contents)
+generated_data/**/*.json
+generated_data/**/*.csv
+generated_data/**/*.parquet
+generated_data/**/*.jsonld
+generated_data/**/_SUCCESS
+generated_data/**/.*.crc
+
+# Spark output files
+*.parquet
+_SUCCESS
+.*.crc
+spark-warehouse/
+metastore_db/
+derby.log
+
 # Test reports
 test_report.html
 htmlcov/
@@ -145,12 +161,20 @@ temp_safety_test.py
 *.tmp
 *.temp
 
+# Temporary documentation files
+CHANGES_SUMMARY.md
+ENHANCEMENTS.md
+EXCEL_SCHEMA_GUIDE.md
+QUICK_START_EXCEL.md
+SPARK_UPDATES.md
+
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.claude/
 
 # OS files
 .DS_Store
@@ -163,3 +187,7 @@ Thumbs.db
 
 # Schema files created during testing
 schemas/*.json
+
+# Test output files
+employees_test.csv
+employees_test.json

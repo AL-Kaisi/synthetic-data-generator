@@ -16,10 +16,19 @@ from faker import Faker
 class DataGenerator:
     """Simple data generator for various field types"""
 
-    def __init__(self):
+    def __init__(self, error_rate: float = 0.0):
+        """
+        Initialize DataGenerator
+
+        Args:
+            error_rate: Percentage of records to inject with data quality issues (0.0 to 1.0)
+        """
         # Initialize Faker for more realistic data
         self.faker = Faker('en_GB')  # Using UK locale as default
         Faker.seed(random.randint(0, 10000))  # Random seed for variety
+
+        # Error injection configuration
+        self.error_rate = min(max(error_rate, 0.0), 1.0)  # Clamp between 0 and 1
 
         # Context storage for coherent record generation
         self.current_record_context = {}
@@ -51,104 +60,264 @@ class DataGenerator:
             "email_domains": ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "company.com"]
         }
 
+        # HMRC NINO validation - invalid first letters
+        self.nino_invalid_first_letters = ['D', 'F', 'I', 'Q', 'U', 'V']
+        # Invalid second letters
+        self.nino_invalid_second_letters = ['D', 'F', 'I', 'O', 'Q', 'U', 'V']
+        # Invalid prefix combinations (real or reserved)
+        self.nino_invalid_prefixes = [
+            'BG', 'GB', 'NK', 'KN', 'TN', 'NT', 'ZZ',
+            'FY', 'MW', 'NC', 'PP', 'PZ', 'TF'
+        ]
+
+    def generate_hmrc_nino(self) -> str:
+        """
+        Generate a valid HMRC National Insurance Number that follows official rules
+        but is guaranteed not to be real (uses test-safe patterns)
+
+        NINO Format: 2 letters + 6 digits + 1 letter (A, B, C, or D)
+
+        Rules:
+        - First letter cannot be: D, F, I, Q, U, V
+        - Second letter cannot be: D, F, I, O, Q, U, V
+        - Prefix cannot be: BG, GB, NK, KN, TN, NT, ZZ, FY, MW, NC, PP, PZ, TF
+        - Suffix must be: A, B, C, or D
+
+        Returns:
+            Valid test NINO string
+        """
+        # Valid letters for first position (excluding invalid ones)
+        valid_first = [chr(i) for i in range(65, 91) if chr(i) not in self.nino_invalid_first_letters]
+        # Valid letters for second position (excluding invalid ones)
+        valid_second = [chr(i) for i in range(65, 91) if chr(i) not in self.nino_invalid_second_letters]
+
+        # Generate prefix until we get a valid one
+        max_attempts = 100
+        for _ in range(max_attempts):
+            first_letter = random.choice(valid_first)
+            second_letter = random.choice(valid_second)
+            prefix = f"{first_letter}{second_letter}"
+
+            # Check if this prefix is valid
+            if prefix not in self.nino_invalid_prefixes:
+                break
+        else:
+            # Fallback to a known test-safe prefix if we couldn't generate one
+            prefix = "AA"  # AA is always valid for test data
+
+        # Generate 6 random digits
+        digits = f"{random.randint(0, 999999):06d}"
+
+        # Generate suffix (A, B, C, or D)
+        suffix = random.choice(['A', 'B', 'C', 'D'])
+
+        return f"{prefix}{digits}{suffix}"
+
+    def _should_inject_error(self) -> bool:
+        """Determine if an error should be injected based on error_rate"""
+        return random.random() < self.error_rate
+
+    def _inject_error(self, value: Any, field_type: str, field_name: str) -> Any:
+        """
+        Inject data quality issues into a value
+
+        Args:
+            value: The original value
+            field_type: Type of the field (string, number, integer, boolean, etc.)
+            field_name: Name of the field
+
+        Returns:
+            Value with injected error
+        """
+        error_types = []
+
+        # Different error types based on field type
+        if field_type == "string":
+            error_types = [
+                "null",
+                "empty",
+                "whitespace",
+                "special_chars",
+                "wrong_case",
+                "truncated",
+                "extra_spaces"
+            ]
+        elif field_type in ["number", "integer"]:
+            error_types = [
+                "null",
+                "negative",
+                "zero",
+                "extreme_value",
+                "string_instead"
+            ]
+        elif field_type == "boolean":
+            error_types = [
+                "null",
+                "string_instead"
+            ]
+        elif field_type == "array":
+            error_types = [
+                "null",
+                "empty",
+                "wrong_type"
+            ]
+        else:
+            error_types = ["null"]
+
+        error_type = random.choice(error_types)
+
+        # Apply the selected error type
+        if error_type == "null":
+            return None
+        elif error_type == "empty" and field_type == "string":
+            return ""
+        elif error_type == "empty" and field_type == "array":
+            return []
+        elif error_type == "whitespace":
+            return "   "
+        elif error_type == "special_chars":
+            return value + random.choice(["!@#$", "///", "<<<", ">>>", "***"])
+        elif error_type == "wrong_case" and isinstance(value, str):
+            return value.upper() if value.islower() else value.lower()
+        elif error_type == "truncated" and isinstance(value, str) and len(value) > 2:
+            return value[:len(value)//2]
+        elif error_type == "extra_spaces" and isinstance(value, str):
+            return "  " + value + "  "
+        elif error_type == "negative" and isinstance(value, (int, float)):
+            return -abs(value)
+        elif error_type == "zero":
+            return 0
+        elif error_type == "extreme_value":
+            return random.choice([999999999, -999999999, float('inf')])
+        elif error_type == "string_instead":
+            return "INVALID_DATA"
+        elif error_type == "number_instead":
+            return random.randint(0, 1)
+        elif error_type == "wrong_type":
+            return "not_an_array"
+
+        return value
+
     def generate_string(self, field_name: str, schema: Dict) -> str:
         """Generate a string value based on field name and constraints"""
 
         # Handle enum values
         if "enum" in schema:
-            return random.choice(schema["enum"])
+            value = random.choice(schema["enum"])
+            if self._should_inject_error():
+                return self._inject_error(value, "string", field_name)
+            return value
 
         # Handle patterns
         if "pattern" in schema:
-            return self._generate_from_pattern(schema["pattern"])
+            value = self._generate_from_pattern(schema["pattern"])
+            if self._should_inject_error():
+                return self._inject_error(value, "string", field_name)
+            return value
 
         # Smart generation based on field name using Faker
         field_lower = field_name.lower()
+
+        # Check for NINO field
+        if "nino" in field_lower or "national_insurance" in field_lower:
+            value = self.generate_hmrc_nino()
+            if self._should_inject_error():
+                return self._inject_error(value, "string", field_name)
+            return value
+
+        # Generate value based on field name
+        value = None
         if "first" in field_lower and "name" in field_lower:
-            first_name = self.faker.first_name()
-            self.current_record_context['first_name'] = first_name
-            return first_name
+            value = self.faker.first_name()
+            self.current_record_context['first_name'] = value
         elif "last" in field_lower and "name" in field_lower:
-            last_name = self.faker.last_name()
-            self.current_record_context['last_name'] = last_name
-            return last_name
+            value = self.faker.last_name()
+            self.current_record_context['last_name'] = value
         elif "name" in field_lower and "full" not in field_lower:
-            return self.faker.name()
+            value = self.faker.name()
         elif "city" in field_lower:
-            return self.faker.city()
+            value = self.faker.city()
         elif "address" in field_lower:
-            return self.faker.address().replace('\n', ', ')
+            value = self.faker.address().replace('\n', ', ')
         elif "street" in field_lower:
-            return self.faker.street_address()
+            value = self.faker.street_address()
         elif "postcode" in field_lower or "zip" in field_lower:
-            return self.faker.postcode()
+            value = self.faker.postcode()
         elif "country" in field_lower:
-            return self.faker.country()
+            value = self.faker.country()
         elif "company" in field_lower or "brand" in field_lower:
-            return self.faker.company()
+            value = self.faker.company()
         elif "job" in field_lower or "position" in field_lower:
-            return self.faker.job()
+            value = self.faker.job()
         elif "email" in field_lower:
             # Generate email based on context (first/last name if available)
             if 'first_name' in self.current_record_context and 'last_name' in self.current_record_context:
                 first = self.current_record_context['first_name'].lower()
                 last = self.current_record_context['last_name'].lower()
                 domain = random.choice(self.fake_data['email_domains'])
-                email_format = random.choice([
+                value = random.choice([
                     f"{first}.{last}@{domain}",
                     f"{first}{last}@{domain}",
                     f"{first[0]}{last}@{domain}",
                     f"{first}_{last}@{domain}"
                 ])
-                return email_format
-            return self.faker.email()
+            else:
+                value = self.faker.email()
         elif "phone" in field_lower:
-            return self.faker.phone_number()
+            value = self.faker.phone_number()
         elif "url" in field_lower or "website" in field_lower:
-            return self.faker.url()
+            value = self.faker.url()
         elif "username" in field_lower:
-            return self.faker.user_name()
+            value = self.faker.user_name()
         elif "description" in field_lower or "summary" in field_lower:
-            return self.faker.text(max_nb_chars=schema.get("maxLength", 200))
+            value = self.faker.text(max_nb_chars=schema.get("maxLength", 200))
         elif "title" in field_lower and "job" not in field_lower:
-            return self.faker.sentence(nb_words=4).rstrip('.')
+            value = self.faker.sentence(nb_words=4).rstrip('.')
         elif "category" in field_lower:
-            return self.faker.word().capitalize()
+            value = self.faker.word().capitalize()
         elif "status" in field_lower:
-            return random.choice(["active", "pending", "completed", "inactive", "archived"])
+            value = random.choice(["active", "pending", "completed", "inactive", "archived"])
         elif "currency" in field_lower:
-            return self.faker.currency_code()
+            value = self.faker.currency_code()
         elif "iban" in field_lower:
-            return self.faker.iban()
+            value = self.faker.iban()
         elif "isbn" in field_lower:
-            return self.faker.isbn13()
+            value = self.faker.isbn13()
         elif "ipv4" in field_lower or ("ip" in field_lower and "address" in field_lower):
-            return self.faker.ipv4()
+            value = self.faker.ipv4()
         elif "mac" in field_lower:
-            return self.faker.mac_address()
+            value = self.faker.mac_address()
         elif "user_agent" in field_lower:
-            return self.faker.user_agent()
+            value = self.faker.user_agent()
         elif "color" in field_lower or "colour" in field_lower:
-            return self.faker.color_name()
+            value = self.faker.color_name()
         elif "department" in field_lower:
-            return self.faker.bs().title()
+            value = self.faker.bs().title()
         elif "id" in field_lower or field_lower.endswith("_id"):
-            return str(uuid.uuid4())
-
-        # Default string generation with Faker
-        min_length = schema.get("minLength", 1)
-        max_length = schema.get("maxLength", 50)
-
-        # Use Faker's text generation for better quality
-        if max_length > 20:
-            return self.faker.text(max_nb_chars=max_length)[:max_length]
+            value = str(uuid.uuid4())
         else:
-            return self.faker.lexify('?' * random.randint(min_length, max_length))
+            # Default string generation with Faker
+            min_length = schema.get("minLength", 1)
+            max_length = schema.get("maxLength", 50)
+
+            # Use Faker's text generation for better quality
+            if max_length > 20:
+                value = self.faker.text(max_nb_chars=max_length)[:max_length]
+            else:
+                value = self.faker.lexify('?' * random.randint(min_length, max_length))
+
+        # Apply error injection if needed
+        if self._should_inject_error():
+            return self._inject_error(value, "string", field_name)
+        return value
 
     def generate_number(self, schema: Dict) -> float:
         """Generate a number value using Faker for better distributions"""
         if "enum" in schema:
-            return random.choice(schema["enum"])
+            value = random.choice(schema["enum"])
+            if self._should_inject_error():
+                return self._inject_error(value, "number", "")
+            return value
 
         minimum = schema.get("minimum", 0)
         maximum = schema.get("maximum", 1000)
@@ -157,23 +326,41 @@ class DataGenerator:
         value = self.faker.random.uniform(minimum, maximum)
 
         decimal_places = schema.get("decimalPlaces", 2)
-        return round(value, decimal_places)
+        value = round(value, decimal_places)
+
+        # Apply error injection if needed
+        if self._should_inject_error():
+            return self._inject_error(value, "number", "")
+        return value
 
     def generate_integer(self, schema: Dict) -> int:
         """Generate an integer value using Faker"""
         if "enum" in schema:
-            return random.choice(schema["enum"])
+            value = random.choice(schema["enum"])
+            if self._should_inject_error():
+                return self._inject_error(value, "integer", "")
+            return value
 
         minimum = schema.get("minimum", 0)
         maximum = schema.get("maximum", 1000)
 
         # Use Faker's random int for consistency
-        return self.faker.random_int(min=int(minimum), max=int(maximum))
+        value = self.faker.random_int(min=int(minimum), max=int(maximum))
+
+        # Apply error injection if needed
+        if self._should_inject_error():
+            return self._inject_error(value, "integer", "")
+        return value
 
     def generate_boolean(self, schema: Dict) -> bool:
         """Generate a boolean value using Faker"""
         # Faker can provide weighted boolean generation if needed
-        return self.faker.boolean()
+        value = self.faker.boolean()
+
+        # Apply error injection if needed
+        if self._should_inject_error():
+            return self._inject_error(value, "boolean", "")
+        return value
 
     def generate_array(self, schema: Dict, field_name: str = "item") -> List[Any]:
         """Generate an array of values"""
@@ -186,41 +373,44 @@ class DataGenerator:
 
         # Generate realistic arrays based on field name
         field_lower = field_name.lower()
+        value = None
         if "skill" in field_lower:
             # Generate realistic skills
             num_skills = random.randint(min_items or 3, min(max_items, 10))
             tech_skills = random.sample(self.tech_skills, min(num_skills - 2, len(self.tech_skills)))
             soft_skills = random.sample(self.soft_skills, min(2, len(self.soft_skills)))
-            return tech_skills + soft_skills
+            value = tech_skills + soft_skills
         elif "certification" in field_lower or "certificate" in field_lower:
             # Generate realistic certifications
             num_certs = random.randint(min_items or 1, min(max_items, 5))
-            return random.sample(self.certifications, min(num_certs, len(self.certifications)))
+            value = random.sample(self.certifications, min(num_certs, len(self.certifications)))
         elif "tag" in field_lower or "category" in field_lower:
             # Generate realistic tags/categories
-            tags = [self.faker.word().capitalize() for _ in range(array_size)]
-            return tags
+            value = [self.faker.word().capitalize() for _ in range(array_size)]
         elif "course" in field_lower:
             # Generate course names
-            courses = [
+            value = [
                 f"{self.faker.word().capitalize()} {random.choice(['101', '201', '301', 'Advanced', 'Introduction to'])}"
                 for _ in range(array_size)
             ]
-            return courses
+        else:
+            # Default array generation
+            for _ in range(array_size):
+                item_type = items_schema.get("type", "string")
+                if item_type == "string":
+                    result.append(self.generate_string("item", items_schema))
+                elif item_type == "number":
+                    result.append(self.generate_number(items_schema))
+                elif item_type == "integer":
+                    result.append(self.generate_integer(items_schema))
+                elif item_type == "boolean":
+                    result.append(self.generate_boolean(items_schema))
+            value = result
 
-        # Default array generation
-        for _ in range(array_size):
-            item_type = items_schema.get("type", "string")
-            if item_type == "string":
-                result.append(self.generate_string("item", items_schema))
-            elif item_type == "number":
-                result.append(self.generate_number(items_schema))
-            elif item_type == "integer":
-                result.append(self.generate_integer(items_schema))
-            elif item_type == "boolean":
-                result.append(self.generate_boolean(items_schema))
-
-        return result
+        # Apply error injection if needed
+        if self._should_inject_error():
+            return self._inject_error(value, "array", field_name)
+        return value
 
     def generate_object(self, schema: Dict) -> Dict[str, Any]:
         """Generate a nested object"""
@@ -289,9 +479,8 @@ class DataGenerator:
 
         # Common patterns
         if pattern == "^[A-Z]{2}[0-9]{6}[A-D]$":  # NINO pattern
-            # Use test-only prefixes for safety
-            prefix = random.choice(["TN", "BG", "GB", "NK", "ZZ"])
-            return f"{prefix}{random.randint(100000, 999999)}{random.choice('ABCD')}"
+            # Use proper HMRC NINO generator
+            return self.generate_hmrc_nino()
         elif pattern == "^[A-Z]{3}-[0-9]{6}$":  # SKU pattern
             letters = ''.join(random.choices(string.ascii_uppercase, k=3))
             numbers = f"{random.randint(100000, 999999)}"
@@ -308,8 +497,14 @@ class DataGenerator:
 class SchemaDataGenerator:
     """Main generator that creates data from JSON schemas"""
 
-    def __init__(self):
-        self.generator = DataGenerator()
+    def __init__(self, error_rate: float = 0.0):
+        """
+        Initialize SchemaDataGenerator
+
+        Args:
+            error_rate: Percentage of fields to inject with data quality issues (0.0 to 1.0)
+        """
+        self.generator = DataGenerator(error_rate=error_rate)
 
     def generate_from_schema(self, schema: Dict, num_records: int = 100) -> List[Dict]:
         """Generate multiple records from a schema"""

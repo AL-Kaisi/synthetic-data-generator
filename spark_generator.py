@@ -28,7 +28,8 @@ class SparkDataGenerator:
     def __init__(self, app_name: str = "SyntheticDataGenerator",
                  master: str = None,
                  memory: str = "4g",
-                 cores: int = None):
+                 cores: int = None,
+                 error_rate: float = 0.0):
         """
         Initialize Spark session for distributed generation
 
@@ -37,6 +38,7 @@ class SparkDataGenerator:
             master: Spark master URL (local[*] for local mode, yarn for cluster)
             memory: Driver memory allocation
             cores: Number of cores to use
+            error_rate: Percentage of fields to inject with data quality issues (0.0 to 1.0)
         """
         if not SPARK_AVAILABLE:
             raise ImportError("PySpark is not installed. Install with: pip install pyspark")
@@ -52,7 +54,9 @@ class SparkDataGenerator:
         # Configuration for better performance
         builder = builder.config("spark.sql.adaptive.enabled", "true") \
                         .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
-                        .config("spark.driver.memory", memory)
+                        .config("spark.driver.memory", memory) \
+                        .config("spark.driver.host", "127.0.0.1") \
+                        .config("spark.driver.bindAddress", "127.0.0.1")
 
         if cores:
             builder = builder.config("spark.executor.cores", str(cores))
@@ -60,8 +64,11 @@ class SparkDataGenerator:
         self.spark = builder.getOrCreate()
         self.spark.sparkContext.setLogLevel("WARN")
 
+        # Store error rate for use in data generation
+        self.error_rate = error_rate
+
         # Broadcast the generator for use in UDFs
-        self.data_generator = DataGenerator()
+        self.data_generator = DataGenerator(error_rate=error_rate)
 
     def _create_spark_schema(self, json_schema: Dict) -> StructType:
         """
@@ -79,7 +86,13 @@ class SparkDataGenerator:
 
         for field_name, field_schema in properties.items():
             field_type = field_schema.get("type", "string")
-            nullable = field_name not in required_fields
+
+            # If error injection is enabled, all fields must be nullable
+            # since we can inject None values
+            if self.error_rate > 0:
+                nullable = True
+            else:
+                nullable = field_name not in required_fields
 
             if field_type == "string":
                 spark_type = StringType()
@@ -132,9 +145,9 @@ class SparkDataGenerator:
 
         print(f"Generating {num_records:,} records across {num_partitions} partitions...")
 
-        # Broadcast the schema and generator for efficiency
+        # Broadcast the schema and error_rate (not the generator to avoid serialization issues)
         broadcast_schema = self.spark.sparkContext.broadcast(schema)
-        broadcast_generator = self.spark.sparkContext.broadcast(self.data_generator)
+        broadcast_error_rate = self.spark.sparkContext.broadcast(self.error_rate)
 
         def generate_batch(partition_id, iterator):
             """Generate data for a partition"""
@@ -142,13 +155,13 @@ class SparkDataGenerator:
             import uuid
             from datetime import datetime, timedelta
 
-            # Each partition gets its own generator instance
-            gen = DataGenerator()
-            schema = broadcast_schema.value
+            # Each partition gets its own generator instance with error_rate
+            gen = DataGenerator(error_rate=broadcast_error_rate.value)
+            schema_val = broadcast_schema.value
 
             for row_num in iterator:
                 record = {}
-                properties = schema.get("properties", {})
+                properties = schema_val.get("properties", {})
 
                 for field_name, field_schema in properties.items():
                     record[field_name] = gen.generate_field(field_name, field_schema)
@@ -287,7 +300,7 @@ class SparkDataGenerator:
         # UDF to generate records
         @F.udf(returnType=self._create_spark_schema(schema))
         def generate_record(value):
-            gen = DataGenerator()
+            gen = DataGenerator(error_rate=self.error_rate)
             record = {}
             properties = broadcast_schema.value.get("properties", {})
 
@@ -322,11 +335,12 @@ def main():
     from schemas import SchemaLibrary
     schema = SchemaLibrary.ecommerce_product_schema()
 
-    # Initialize generator
+    # Initialize generator with error injection
     generator = SparkDataGenerator(
         app_name="MassiveDataGeneration",
         master="local[*]",  # Use all local cores
-        memory="8g"
+        memory="8g",
+        error_rate=0.1  # 10% error injection for data quality testing
     )
 
     try:
@@ -343,6 +357,9 @@ def main():
         # Show statistics
         print(f"\nDataset statistics:")
         print(f"Partitions: {df.rdd.getNumPartitions()}")
+
+        if generator.error_rate > 0:
+            print(f"Error injection rate: {generator.error_rate * 100:.1f}%")
 
     finally:
         generator.close()

@@ -1,0 +1,12 @@
+column_name,type,description,values,required,min,max
+employee_id,string,unique identifier,,true,,
+first_name,string,first name,,true,,
+last_name,string,last name,,true,,
+email,string,email address,,true,,
+nino,string,national insurance number,,true,,
+date_of_birth,string,date,,true,,
+department,string,department,"IT,HR,Finance,Marketing,Sales",true,,
+salary,number,salary amount,,,30000,150000
+years_of_service,integer,years worked,,,0,40
+is_active,boolean,employment status,,true,,
+skills,array,technical skills,,false,,
