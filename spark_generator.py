@@ -270,7 +270,8 @@ class SparkDataGenerator:
                             output_format: str = "parquet",
                             mode: str = "overwrite",
                             compression: str = "snappy",
-                            coalesce_partitions: int = None):
+                            coalesce_partitions: int = None,
+                            single_file: bool = False):
         """
         Save massive dataset efficiently
 
@@ -280,13 +281,21 @@ class SparkDataGenerator:
             output_format: Format (parquet, csv, json, orc, delta)
             mode: Save mode (overwrite, append, ignore, error)
             compression: Compression codec
-            coalesce_partitions: Number of output files (optional)
+            coalesce_partitions: Number of output files (optional, overrides single_file)
+            single_file: If True, output a single file instead of multiple part files
         """
+        import os
+        import shutil
+        import glob
+
         writer = df.write.mode(mode)
 
-        # Optimize partitions for output if specified
+        # Optimize partitions for output
         if coalesce_partitions:
             df = df.coalesce(coalesce_partitions)
+        elif single_file:
+            # Coalesce to 1 partition for single file output
+            df = df.coalesce(1)
 
         # Set compression
         if compression:
@@ -294,21 +303,70 @@ class SparkDataGenerator:
 
         print(f"Saving data to {output_path} as {output_format}...")
 
+        # Determine if we need temporary directory for single file
+        if single_file:
+            temp_output = output_path + "_temp"
+        else:
+            temp_output = output_path
+
+        # Write data
         if output_format == "parquet":
-            writer.parquet(output_path)
+            writer.parquet(temp_output)
         elif output_format == "csv":
-            writer.option("header", "true").csv(output_path)
+            writer.option("header", "true").csv(temp_output)
         elif output_format == "json":
-            writer.json(output_path)
+            writer.json(temp_output)
         elif output_format == "orc":
-            writer.orc(output_path)
+            writer.orc(temp_output)
         elif output_format == "delta":
             # Requires delta-spark package
-            writer.format("delta").save(output_path)
+            writer.format("delta").save(temp_output)
+            single_file = False  # Delta doesn't support single file
         else:
             raise ValueError(f"Unsupported format: {output_format}")
 
+        # If single file requested, rename and clean up
+        if single_file:
+            self._consolidate_to_single_file(temp_output, output_path, output_format)
+
         print(f"Data saved successfully to {output_path}")
+
+    def _consolidate_to_single_file(self, temp_dir: str, final_path: str, output_format: str):
+        """
+        Consolidate Spark part files into a single file
+
+        Args:
+            temp_dir: Temporary directory with part files
+            final_path: Final output file path
+            output_format: File format (csv, json, etc.)
+        """
+        import os
+        import shutil
+        import glob
+
+        # Find the part file (there should be only one with coalesce(1))
+        part_files = glob.glob(os.path.join(temp_dir, f"part-*"))
+
+        if not part_files:
+            raise FileNotFoundError(f"No part files found in {temp_dir}")
+
+        # Get the first (and should be only) part file
+        part_file = part_files[0]
+
+        # Ensure final_path has correct extension
+        if not final_path.endswith(f".{output_format}"):
+            final_path = f"{final_path}.{output_format}"
+
+        # Create parent directory if it doesn't exist
+        os.makedirs(os.path.dirname(os.path.abspath(final_path)), exist_ok=True)
+
+        # Move the part file to final location
+        shutil.move(part_file, final_path)
+
+        # Clean up temporary directory
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        print(f"  → Consolidated to single file: {final_path}")
 
     def generate_and_save(self,
                          schema: Dict,
@@ -316,17 +374,19 @@ class SparkDataGenerator:
                          output_path: str,
                          output_format: str = "parquet",
                          num_partitions: int = None,
-                         show_sample: bool = True):
+                         show_sample: bool = True,
+                         single_file: bool = False):
         """
         Generate and save massive dataset in one operation
 
         Args:
             schema: JSON schema
             num_records: Number of records
-            output_path: Output path
-            output_format: Output format
-            num_partitions: Number of partitions
+            output_path: Output path (without extension if single_file=True)
+            output_format: Output format (parquet, csv, json, orc, delta)
+            num_partitions: Number of partitions for generation
             show_sample: Whether to show sample records
+            single_file: If True, output a single file instead of multiple part files
         """
         start_time = datetime.now()
 
@@ -343,7 +403,7 @@ class SparkDataGenerator:
             print(f"\nTotal records: {df.count():,}")
 
         # Save data
-        self.save_massive_dataset(df, output_path, output_format)
+        self.save_massive_dataset(df, output_path, output_format, single_file=single_file)
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -438,14 +498,15 @@ def main():
     )
 
     try:
-        # Generate 1 million records
+        # Generate 1 million records (multiple files for big data)
         df = generator.generate_and_save(
             schema=schema,
             num_records=1000000,
             output_path="output/massive_products",
             output_format="parquet",
             num_partitions=100,
-            show_sample=True
+            show_sample=True,
+            single_file=False  # Multiple part files for large datasets
         )
 
         # Show statistics
@@ -454,6 +515,20 @@ def main():
 
         if generator.error_rate > 0:
             print(f"Error injection rate: {generator.error_rate * 100:.1f}%")
+
+        # Example: Generate smaller dataset as single CSV file
+        print("\n" + "="*70)
+        print("Generating single CSV file...")
+        print("="*70)
+
+        small_df = generator.generate_and_save(
+            schema=schema,
+            num_records=10000,  # Smaller dataset
+            output_path="output/products_single",  # Extension added automatically
+            output_format="csv",
+            show_sample=False,
+            single_file=True  # Output as single CSV file
+        )
 
     finally:
         generator.close()
