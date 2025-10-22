@@ -103,13 +103,19 @@ class SparkDataGenerator:
             elif field_type == "boolean":
                 spark_type = BooleanType()
             elif field_type == "array":
+                # Handle all array item types for Spark compatibility
                 item_type = field_schema.get("items", {}).get("type", "string")
                 if item_type == "string":
-                    spark_type = ArrayType(StringType())
+                    spark_type = ArrayType(StringType(), True)  # True = nullable items
                 elif item_type == "integer":
-                    spark_type = ArrayType(LongType())
+                    spark_type = ArrayType(LongType(), True)
+                elif item_type == "number":
+                    spark_type = ArrayType(DoubleType(), True)
+                elif item_type == "boolean":
+                    spark_type = ArrayType(BooleanType(), True)
                 else:
-                    spark_type = ArrayType(StringType())
+                    # Default to string for unknown types
+                    spark_type = ArrayType(StringType(), True)
             elif field_type == "object":
                 # For nested objects, use MapType or JSON string
                 spark_type = MapType(StringType(), StringType())

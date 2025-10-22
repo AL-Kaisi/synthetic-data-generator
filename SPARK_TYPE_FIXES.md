@@ -197,6 +197,44 @@ elif field_type == "array":
 
 **Also updated:** `generate_array()` docstring (lines 401-409) to document Spark compatibility guarantees.
 
+### Fix 7: Complete Array Type Mapping in Spark Schema
+
+**File:** `spark_generator.py` (lines 105-118)
+
+**Problem:** The Spark schema creation only mapped string and integer array item types, causing type errors for arrays of numbers or booleans.
+
+**Before:**
+```python
+elif field_type == "array":
+    item_type = field_schema.get("items", {}).get("type", "string")
+    if item_type == "string":
+        spark_type = ArrayType(StringType())
+    elif item_type == "integer":
+        spark_type = ArrayType(LongType())
+    else:
+        spark_type = ArrayType(StringType())  # ❌ Wrong default!
+```
+
+**After:**
+```python
+elif field_type == "array":
+    # Handle all array item types for Spark compatibility
+    item_type = field_schema.get("items", {}).get("type", "string")
+    if item_type == "string":
+        spark_type = ArrayType(StringType(), True)  # True = nullable items
+    elif item_type == "integer":
+        spark_type = ArrayType(LongType(), True)
+    elif item_type == "number":
+        spark_type = ArrayType(DoubleType(), True)  # ✅ Now supported!
+    elif item_type == "boolean":
+        spark_type = ArrayType(BooleanType(), True)  # ✅ Now supported!
+    else:
+        # Default to string for unknown types
+        spark_type = ArrayType(StringType(), True)
+```
+
+**Impact:** Schemas can now have arrays of any type without causing Spark type errors.
+
 ## Type Guarantees
 
 After these fixes, the data generator provides these guarantees for Spark:
@@ -367,10 +405,30 @@ All Spark type compatibility issues have been resolved:
 
 Your Spark generator should now work reliably with any schema and any error rate!
 
+## Files Modified
+
+### simple_generator.py
+- Fixed error injection for numeric types (removed "string_instead")
+- Fixed error injection for array types (removed "wrong_type")
+- Updated generate_number() to always return float
+- Updated generate_integer() to always return int
+- Updated generate_array() docstring
+- Fixed extreme value handling (removed float('inf'))
+
+### spark_generator.py
+- Fixed array type mapping to support all item types (number, boolean)
+- Added nullable=True for array items to support error injection
+
+### Tests Created
+- test_spark_type_compatibility.py - Tests numeric types
+- test_array_type_compatibility.py - Tests array types
+- test_spark_generator_types.py - Tests Spark generator end-to-end
+
 ## Issues Resolved
 
-This document addresses all three type compatibility errors encountered:
+This document addresses all type compatibility errors encountered:
 
 1. ✅ **DoubleType cannot accept integer** - Fixed by ensuring generate_number() always returns float
 2. ✅ **DoubleType cannot accept string "INVALID_DATA"** - Fixed by removing string errors from numeric types
 3. ✅ **ArrayType cannot accept string "not_an_array"** - Fixed by removing string errors from array types
+4. ✅ **ArrayType schema mapping incomplete** - Fixed by adding number and boolean array item types
