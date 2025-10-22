@@ -186,9 +186,14 @@ class DataGenerator:
         elif error_type == "negative" and isinstance(value, (int, float)):
             return -abs(value)
         elif error_type == "zero":
-            return 0
+            # Return 0 with correct type based on original value
+            return 0.0 if isinstance(value, float) else 0
         elif error_type == "extreme_value":
-            return random.choice([999999999, -999999999, float('inf')])
+            # For number fields, return floats; for integer fields, return ints
+            if isinstance(value, float):
+                return random.choice([999999999.0, -999999999.0, float('inf')])
+            else:
+                return random.choice([999999999, -999999999])
         elif error_type == "string_instead":
             return "INVALID_DATA"
         elif error_type == "number_instead":
@@ -312,15 +317,21 @@ class DataGenerator:
         return value
 
     def generate_number(self, schema: Dict) -> float:
-        """Generate a number value using Faker for better distributions"""
+        """Generate a number value using Faker for better distributions - ALWAYS returns float"""
         if "enum" in schema:
             value = random.choice(schema["enum"])
+            # Ensure enum values are converted to float
+            value = float(value) if value is not None else value
             if self._should_inject_error():
-                return self._inject_error(value, "number", "")
+                error_value = self._inject_error(value, "number", "")
+                # Ensure error injection also returns float
+                if error_value is not None and error_value != "INVALID_DATA" and not isinstance(error_value, str):
+                    return float(error_value)
+                return error_value
             return value
 
-        minimum = schema.get("minimum", 0)
-        maximum = schema.get("maximum", 1000)
+        minimum = float(schema.get("minimum", 0))
+        maximum = float(schema.get("maximum", 1000))
 
         # Use Faker's random float for better distribution
         value = self.faker.random.uniform(minimum, maximum)
@@ -330,8 +341,14 @@ class DataGenerator:
 
         # Apply error injection if needed
         if self._should_inject_error():
-            return self._inject_error(value, "number", "")
-        return value
+            error_value = self._inject_error(value, "number", "")
+            # Ensure error injection returns float (except for special values like None or string)
+            if error_value is not None and error_value != "INVALID_DATA" and not isinstance(error_value, str):
+                return float(error_value)
+            return error_value
+
+        # Final safeguard: ensure we always return a float type
+        return float(value) if value is not None else value
 
     def generate_integer(self, schema: Dict) -> int:
         """Generate an integer value using Faker"""
