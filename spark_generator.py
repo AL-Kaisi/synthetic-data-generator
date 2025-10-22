@@ -288,18 +288,12 @@ class SparkDataGenerator:
         import shutil
         import glob
 
-        writer = df.write.mode(mode)
-
         # Optimize partitions for output
         if coalesce_partitions:
             df = df.coalesce(coalesce_partitions)
         elif single_file:
             # Coalesce to 1 partition for single file output
             df = df.coalesce(1)
-
-        # Set compression
-        if compression:
-            writer = writer.option("compression", compression)
 
         print(f"Saving data to {output_path} as {output_format}...")
 
@@ -310,8 +304,16 @@ class SparkDataGenerator:
             temp_output = output_path
 
         # Convert complex types to strings for CSV format
+        # IMPORTANT: Do this BEFORE creating the writer!
         if output_format == "csv":
             df = self._prepare_dataframe_for_csv(df)
+
+        # Create writer AFTER all dataframe transformations
+        writer = df.write.mode(mode)
+
+        # Set compression
+        if compression:
+            writer = writer.option("compression", compression)
 
         # Write data
         if output_format == "parquet":
