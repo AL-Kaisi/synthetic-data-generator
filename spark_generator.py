@@ -537,7 +537,20 @@ class SparkDataGenerator:
 
 
 def main():
-    """Example usage of Spark generator"""
+    """
+    Auto-generate data from schemas in custom_schemas/ folder
+
+    Usage:
+        python3 spark_generator.py
+
+    This will automatically:
+    1. Find all schema files in custom_schemas/ folder
+    2. Parse each schema (.xlsx, .json, .csv, .sql)
+    3. Generate 1000 records from each schema
+    4. Save as CSV in generated_data/ folder
+    """
+    import os
+    from pathlib import Path
 
     # Check if PySpark is available
     if not SPARK_AVAILABLE:
@@ -545,53 +558,140 @@ def main():
         print("pip install pyspark")
         sys.exit(1)
 
-    # Example schema
-    from schemas import SchemaLibrary
-    schema = SchemaLibrary.ecommerce_product_schema()
+    print("="*70)
+    print("Spark Data Generator - Auto Mode")
+    print("="*70)
+    print("\nScanning custom_schemas/ folder for schema files...")
 
-    # Initialize generator with error injection
+    # Find schema files in custom_schemas folder
+    schema_dir = Path("custom_schemas")
+
+    if not schema_dir.exists():
+        print(f"\n❌ Folder not found: custom_schemas/")
+        print("Please create custom_schemas/ folder and add your schema files")
+        sys.exit(1)
+
+    # Find all supported schema files
+    schema_files = []
+    for ext in ['.xlsx', '.xls', '.json', '.csv', '.sql']:
+        schema_files.extend(schema_dir.glob(f'*{ext}'))
+
+    # Filter out README files
+    schema_files = [f for f in schema_files if 'README' not in f.name.upper()]
+    schema_files = sorted(schema_files)
+
+    if not schema_files:
+        print("\n❌ No schema files found in custom_schemas/")
+        print("\nSupported formats:")
+        print("  - Excel: .xlsx, .xls")
+        print("  - JSON: .json")
+        print("  - CSV: .csv")
+        print("  - SQL: .sql")
+        print("\nDrop your schema files in custom_schemas/ and run again!")
+        sys.exit(1)
+
+    print(f"\n✓ Found {len(schema_files)} schema file(s):")
+    for i, f in enumerate(schema_files, 1):
+        print(f"  {i}. {f.name}")
+
+    # Create output directory
+    output_dir = Path("generated_data")
+    output_dir.mkdir(exist_ok=True)
+
+    # Import schema parser
+    try:
+        from schema_parser import SchemaParser
+    except ImportError:
+        print("\n❌ schema_parser.py not found")
+        sys.exit(1)
+
+    parser = SchemaParser()
+
+    # Initialize generator
+    print(f"\n{'='*70}")
+    print("Initializing Spark Generator")
+    print("="*70)
+
     generator = SparkDataGenerator(
-        app_name="MassiveDataGeneration",
+        app_name="AutoDataGenerator",
         master="local[*]",  # Use all local cores
-        memory="8g",
-        error_rate=0.1  # 10% error injection for data quality testing
+        memory="4g",
+        error_rate=0.0  # No errors by default
     )
 
+    success_count = 0
+
     try:
-        # Generate 1 million records (multiple files for big data)
-        df = generator.generate_and_save(
-            schema=schema,
-            num_records=1000000,
-            output_path="output/massive_products",
-            output_format="parquet",
-            num_partitions=100,
-            show_sample=True,
-            single_file=False  # Multiple part files for large datasets
-        )
+        # Process each schema file
+        for schema_file in schema_files:
+            print(f"\n{'='*70}")
+            print(f"Processing: {schema_file.name}")
+            print("="*70)
 
-        # Show statistics
-        print(f"\nDataset statistics:")
-        print(f"Partitions: {df.rdd.getNumPartitions()}")
+            try:
+                # Parse schema
+                print(f"  Parsing schema...")
+                schema = parser.parse_schema_file(str(schema_file))
 
-        if generator.error_rate > 0:
-            print(f"Error injection rate: {generator.error_rate * 100:.1f}%")
+                num_fields = len(schema.get('properties', {}))
+                print(f"  ✓ Parsed successfully ({num_fields} fields)")
 
-        # Example: Generate smaller dataset as single CSV file
-        print("\n" + "="*70)
-        print("Generating single CSV file...")
+                # Check for complex types
+                properties = schema.get('properties', {})
+                has_arrays = any(f.get('type') == 'array' for f in properties.values())
+                has_objects = any(f.get('type') == 'object' for f in properties.values())
+
+                if has_arrays or has_objects:
+                    print(f"  ℹ️  Contains arrays/objects (will convert to JSON for CSV)")
+
+                # Generate output path
+                output_name = schema_file.stem
+                output_path = f"generated_data/{output_name}"
+
+                # Generate data
+                print(f"  Generating 1000 records...")
+
+                df = generator.generate_and_save(
+                    schema=schema,
+                    num_records=1000,
+                    output_path=output_path,
+                    output_format="csv",
+                    show_sample=False,
+                    single_file=True
+                )
+
+                # Verify output
+                final_file = f"{output_path}.csv"
+                if os.path.exists(final_file):
+                    size_kb = os.path.getsize(final_file) / 1024
+                    print(f"  ✅ SUCCESS: {final_file} ({size_kb:.1f} KB)")
+                    success_count += 1
+                else:
+                    print(f"  ❌ Output file not created")
+
+            except Exception as e:
+                print(f"  ❌ Error: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # Summary
+        print(f"\n{'='*70}")
+        print("SUMMARY")
         print("="*70)
+        print(f"Total schemas: {len(schema_files)}")
+        print(f"Successful: {success_count}")
+        print(f"Failed: {len(schema_files) - success_count}")
 
-        small_df = generator.generate_and_save(
-            schema=schema,
-            num_records=10000,  # Smaller dataset
-            output_path="output/products_single",  # Extension added automatically
-            output_format="csv",
-            show_sample=False,
-            single_file=True  # Output as single CSV file
-        )
+        if success_count > 0:
+            print(f"\n✓ Generated files in: generated_data/")
+            for schema_file in schema_files:
+                csv_file = f"generated_data/{schema_file.stem}.csv"
+                if os.path.exists(csv_file):
+                    print(f"  - {csv_file}")
 
     finally:
         generator.close()
+        print(f"\n✓ Spark session closed")
 
 
 if __name__ == "__main__":
