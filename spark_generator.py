@@ -309,6 +309,10 @@ class SparkDataGenerator:
         else:
             temp_output = output_path
 
+        # Convert complex types to strings for CSV format
+        if output_format == "csv":
+            df = self._prepare_dataframe_for_csv(df)
+
         # Write data
         if output_format == "parquet":
             writer.parquet(temp_output)
@@ -330,6 +334,60 @@ class SparkDataGenerator:
             self._consolidate_to_single_file(temp_output, output_path, output_format)
 
         print(f"Data saved successfully to {output_path}")
+
+    def _prepare_dataframe_for_csv(self, df: 'DataFrame') -> 'DataFrame':
+        """
+        Prepare DataFrame for CSV output by converting complex types to JSON strings
+
+        CSV format doesn't support:
+        - ArrayType (lists)
+        - MapType (dictionaries)
+        - StructType (nested objects)
+
+        This method converts these to JSON strings so CSV can handle them.
+
+        Args:
+            df: Input DataFrame
+
+        Returns:
+            DataFrame with complex types converted to JSON strings
+        """
+        from pyspark.sql.functions import col, to_json, when
+        from pyspark.sql.types import ArrayType, MapType, StructType
+
+        # Check each column and convert complex types to JSON strings
+        for field in df.schema.fields:
+            col_name = field.name
+            col_type = field.dataType
+
+            # Convert ArrayType to JSON string
+            if isinstance(col_type, ArrayType):
+                print(f"  → Converting array column '{col_name}' to JSON string for CSV")
+                df = df.withColumn(
+                    col_name,
+                    when(col(col_name).isNull(), None)
+                    .otherwise(to_json(col(col_name)))
+                )
+
+            # Convert MapType to JSON string
+            elif isinstance(col_type, MapType):
+                print(f"  → Converting map column '{col_name}' to JSON string for CSV")
+                df = df.withColumn(
+                    col_name,
+                    when(col(col_name).isNull(), None)
+                    .otherwise(to_json(col(col_name)))
+                )
+
+            # Convert StructType to JSON string
+            elif isinstance(col_type, StructType):
+                print(f"  → Converting struct column '{col_name}' to JSON string for CSV")
+                df = df.withColumn(
+                    col_name,
+                    when(col(col_name).isNull(), None)
+                    .otherwise(to_json(col(col_name)))
+                )
+
+        return df
 
     def _consolidate_to_single_file(self, temp_dir: str, final_path: str, output_format: str):
         """
