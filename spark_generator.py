@@ -23,7 +23,55 @@ from simple_generator import DataGenerator
 
 
 class SparkDataGenerator:
-    """Distributed data generator using PySpark for massive datasets"""
+    """
+    Distributed data generator using PySpark for massive datasets
+
+    This generator is fully type-safe for all Spark DataTypes and supports
+    error injection without causing type compatibility issues.
+
+    Type Safety Guarantees:
+    ----------------------
+    - Integer fields (LongType): Always returns int or None, NEVER float or string
+    - Number fields (DoubleType): Always returns float or None, NEVER int or string
+    - Boolean fields (BooleanType): Always returns bool or None, NEVER string
+    - Array fields (ArrayType): Always returns list or None, NEVER string
+    - String fields (StringType): Always returns str or None
+    - Object fields (MapType): Returns dict with string keys/values
+
+    Features:
+    ---------
+    - Parallel data generation across multiple partitions
+    - Type-safe error injection (0% to 100% error rate)
+    - Support for all JSON schema types
+    - Streaming data generation
+    - Multiple output formats (Parquet, CSV, JSON, ORC, Delta)
+    - Automatic schema inference and validation
+
+    Error Injection:
+    ---------------
+    When error_rate > 0, the generator injects type-safe errors:
+    - Numeric fields: null, negative, zero, extreme values (type-safe)
+    - Boolean fields: null only
+    - Array fields: null or empty list
+    - String fields: null, empty, whitespace, malformed, etc.
+
+    All error injection maintains Spark type compatibility!
+
+    Usage Example:
+    -------------
+    >>> generator = SparkDataGenerator(
+    ...     master="local[*]",
+    ...     memory="4g",
+    ...     error_rate=0.1  # 10% error injection - fully safe!
+    ... )
+    >>> df = generator.generate_and_save(
+    ...     schema=my_schema,
+    ...     num_records=1000000,
+    ...     output_path="output",
+    ...     output_format="parquet"
+    ... )
+    >>> generator.close()
+    """
 
     def __init__(self, app_name: str = "SyntheticDataGenerator",
                  master: str = None,
@@ -72,13 +120,24 @@ class SparkDataGenerator:
 
     def _create_spark_schema(self, json_schema: Dict) -> StructType:
         """
-        Convert JSON schema to Spark StructType
+        Convert JSON schema to Spark StructType with full type safety
+
+        This method ensures all Spark DataTypes are correctly mapped and nullable
+        when error injection is enabled.
+
+        Type Safety Guarantees:
+        - string → StringType (can be None)
+        - integer → LongType (can be None, NEVER float or string)
+        - number → DoubleType (can be None, NEVER int or string)
+        - boolean → BooleanType (can be None, NEVER string)
+        - array → ArrayType with correct item types (can be None, NEVER string)
+        - object → MapType(StringType, StringType, nullable)
 
         Args:
             json_schema: JSON schema dictionary
 
         Returns:
-            Spark StructType
+            Spark StructType with type-safe field definitions
         """
         spark_fields = []
         properties = json_schema.get("properties", {})
@@ -97,12 +156,16 @@ class SparkDataGenerator:
             if field_type == "string":
                 spark_type = StringType()
             elif field_type == "integer":
+                # LongType: accepts int or None, REJECTS float/string
                 spark_type = LongType()
             elif field_type == "number":
+                # DoubleType: accepts float or None, REJECTS int/string
                 spark_type = DoubleType()
             elif field_type == "boolean":
+                # BooleanType: accepts bool or None, REJECTS string
                 spark_type = BooleanType()
             elif field_type == "array":
+                # ArrayType: accepts list or None, REJECTS string like "not_an_array"
                 # Handle all array item types for Spark compatibility
                 item_type = field_schema.get("items", {}).get("type", "string")
                 if item_type == "string":
@@ -117,9 +180,10 @@ class SparkDataGenerator:
                     # Default to string for unknown types
                     spark_type = ArrayType(StringType(), True)
             elif field_type == "object":
-                # For nested objects, use MapType or JSON string
-                spark_type = MapType(StringType(), StringType())
+                # For nested objects, use MapType with nullable values
+                spark_type = MapType(StringType(), StringType(), valueContainsNull=True)
             else:
+                # Default to StringType for unknown types
                 spark_type = StringType()
 
             spark_fields.append(StructField(field_name, spark_type, nullable))
@@ -156,12 +220,21 @@ class SparkDataGenerator:
         broadcast_error_rate = self.spark.sparkContext.broadcast(self.error_rate)
 
         def generate_batch(partition_id, iterator):
-            """Generate data for a partition"""
+            """
+            Generate data for a partition with type-safe data generation
+
+            Each partition gets its own DataGenerator instance to ensure:
+            - Thread safety
+            - Independent random seeds
+            - Type-safe error injection
+            - Correct Spark DataType compatibility
+            """
             import random
             import uuid
             from datetime import datetime, timedelta
 
             # Each partition gets its own generator instance with error_rate
+            # This ensures type-safe generation: int for LongType, float for DoubleType, etc.
             gen = DataGenerator(error_rate=broadcast_error_rate.value)
             schema_val = broadcast_schema.value
 
@@ -170,6 +243,11 @@ class SparkDataGenerator:
                 properties = schema_val.get("properties", {})
 
                 for field_name, field_schema in properties.items():
+                    # generate_field ensures type safety:
+                    # - integer → int or None
+                    # - number → float or None
+                    # - boolean → bool or None
+                    # - array → list or None
                     record[field_name] = gen.generate_field(field_name, field_schema)
 
                 yield Row(**record)
@@ -303,14 +381,24 @@ class SparkDataGenerator:
         # Broadcast schema
         broadcast_schema = self.spark.sparkContext.broadcast(schema)
 
-        # UDF to generate records
+        # UDF to generate records with type safety
         @F.udf(returnType=self._create_spark_schema(schema))
         def generate_record(value):
+            """
+            Type-safe record generation for streaming data
+
+            Uses DataGenerator which guarantees:
+            - integer fields return int or None
+            - number fields return float or None
+            - boolean fields return bool or None
+            - array fields return list or None
+            """
             gen = DataGenerator(error_rate=self.error_rate)
             record = {}
             properties = broadcast_schema.value.get("properties", {})
 
             for field_name, field_schema in properties.items():
+                # Type-safe generation with error injection support
                 record[field_name] = gen.generate_field(field_name, field_schema)
 
             return Row(**record)

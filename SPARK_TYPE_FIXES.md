@@ -197,7 +197,34 @@ elif field_type == "array":
 
 **Also updated:** `generate_array()` docstring (lines 401-409) to document Spark compatibility guarantees.
 
-### Fix 7: Complete Array Type Mapping in Spark Schema
+### Fix 7: Remove String Error Injection for Boolean Fields
+
+**File:** `simple_generator.py` (lines 154-159)
+
+**Problem:** BooleanType also cannot accept strings! The `"string_instead"` error was returning `"INVALID_DATA"` for boolean fields.
+
+**Before:**
+```python
+elif field_type == "boolean":
+    error_types = [
+        "null",
+        "string_instead"  # ❌ Returns "INVALID_DATA" string
+    ]
+```
+
+**After:**
+```python
+elif field_type == "boolean":
+    # For Spark compatibility: NEVER return strings for boolean fields
+    # Spark's BooleanType cannot accept string values like "INVALID_DATA"
+    error_types = [
+        "null"
+    ]
+```
+
+**Also updated:** `generate_boolean()` docstring (lines 392-407) to document Spark compatibility guarantees.
+
+### Fix 8: Complete Array Type Mapping in Spark Schema
 
 **File:** `spark_generator.py` (lines 105-118)
 
@@ -252,8 +279,8 @@ After these fixes, the data generator provides these guarantees for Spark:
 
 ### Boolean Fields (Spark BooleanType)
 - **Always returns:** `bool` or `None`
-- **Error injection:** Can return `None` or `"INVALID_DATA"` string
-- **Note:** Boolean error injection still includes string errors (BooleanType is more lenient)
+- **Never returns:** `str`, `int`, `float`
+- **Error injection:** Only `null` (returns None)
 
 ### Array Fields (Spark ArrayType)
 - **Always returns:** `list` or `None`
@@ -286,6 +313,17 @@ python3 test_array_type_compatibility.py
 - Error injection never returns strings for arrays
 - Arrays with different item types work correctly
 - Null and empty arrays are properly handled
+
+**test_boolean_type_compatibility.py** verifies:
+- Boolean fields always return bool or None
+- Error injection never returns strings for booleans
+- Null values properly handled
+
+**test_all_spark_types.py** verifies:
+- All types work correctly together
+- All types maintain type safety with any error rate (0% to 100%)
+- Enum values maintain correct types
+- Array item types are correct
 
 ## Usage Recommendations
 
@@ -431,4 +469,5 @@ This document addresses all type compatibility errors encountered:
 1. ✅ **DoubleType cannot accept integer** - Fixed by ensuring generate_number() always returns float
 2. ✅ **DoubleType cannot accept string "INVALID_DATA"** - Fixed by removing string errors from numeric types
 3. ✅ **ArrayType cannot accept string "not_an_array"** - Fixed by removing string errors from array types
-4. ✅ **ArrayType schema mapping incomplete** - Fixed by adding number and boolean array item types
+4. ✅ **BooleanType cannot accept string "INVALID_DATA"** - Fixed by removing string errors from boolean type
+5. ✅ **ArrayType schema mapping incomplete** - Fixed by adding number and boolean array item types

@@ -152,9 +152,10 @@ class DataGenerator:
                 "extreme_value"
             ]
         elif field_type == "boolean":
+            # For Spark compatibility: NEVER return strings for boolean fields
+            # Spark's BooleanType cannot accept string values like "INVALID_DATA"
             error_types = [
-                "null",
-                "string_instead"
+                "null"
             ]
         elif field_type == "array":
             # For Spark compatibility: NEVER return strings for array fields
@@ -389,7 +390,14 @@ class DataGenerator:
         return value
 
     def generate_boolean(self, schema: Dict) -> bool:
-        """Generate a boolean value using Faker"""
+        """
+        Generate a boolean value using Faker - ALWAYS returns bool or None
+
+        For Spark compatibility:
+        - Always returns bool type (never string)
+        - Never returns strings (error injection only returns None)
+        - Handles null values properly
+        """
         # Faker can provide weighted boolean generation if needed
         value = self.faker.boolean()
 
