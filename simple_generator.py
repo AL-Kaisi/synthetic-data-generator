@@ -157,10 +157,11 @@ class DataGenerator:
                 "string_instead"
             ]
         elif field_type == "array":
+            # For Spark compatibility: NEVER return strings for array fields
+            # Spark's ArrayType cannot accept string values
             error_types = [
                 "null",
-                "empty",
-                "wrong_type"
+                "empty"
             ]
         else:
             error_types = ["null"]
@@ -398,7 +399,14 @@ class DataGenerator:
         return value
 
     def generate_array(self, schema: Dict, field_name: str = "item") -> List[Any]:
-        """Generate an array of values"""
+        """
+        Generate an array of values - ALWAYS returns list or None
+
+        For Spark compatibility:
+        - Always returns list type (never string or other types)
+        - Never returns strings (error injection only returns None or empty list)
+        - Handles null values properly
+        """
         min_items = schema.get("minItems", 0)
         max_items = schema.get("maxItems", 10)
         items_schema = schema.get("items", {"type": "string"})

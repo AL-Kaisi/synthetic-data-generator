@@ -170,6 +170,33 @@ elif error_type == "zero":
     return 0.0 if isinstance(value, float) else 0
 ```
 
+### Fix 6: Remove String Error Injection for Array Fields
+
+**File:** `simple_generator.py` (lines 159-165)
+
+**Before:**
+```python
+elif field_type == "array":
+    error_types = [
+        "null",
+        "empty",
+        "wrong_type"  # ❌ Returns "not_an_array" string
+    ]
+```
+
+**After:**
+```python
+elif field_type == "array":
+    # For Spark compatibility: NEVER return strings for array fields
+    # Spark's ArrayType cannot accept string values
+    error_types = [
+        "null",
+        "empty"
+    ]  # ✅ No more string errors
+```
+
+**Also updated:** `generate_array()` docstring (lines 401-409) to document Spark compatibility guarantees.
+
 ## Type Guarantees
 
 After these fixes, the data generator provides these guarantees for Spark:
@@ -190,21 +217,37 @@ After these fixes, the data generator provides these guarantees for Spark:
 - **Error injection:** Can return `None` or `"INVALID_DATA"` string
 - **Note:** Boolean error injection still includes string errors (BooleanType is more lenient)
 
+### Array Fields (Spark ArrayType)
+- **Always returns:** `list` or `None`
+- **Never returns:** `str`, `int`, `float`, `bool`
+- **Error injection:** Only `null` or `empty` (both returning None or empty list)
+- **Note:** Array items follow the same type-safety rules as their item type
+
 ## Testing
 
-Run the comprehensive test suite to verify Spark compatibility:
+Run the comprehensive test suites to verify Spark compatibility:
 
 ```bash
+# Test all numeric types (DoubleType, LongType)
 python3 test_spark_type_compatibility.py
+
+# Test array types (ArrayType)
+python3 test_array_type_compatibility.py
 ```
 
-This test verifies:
+**test_spark_type_compatibility.py** verifies:
 - Number fields always return float or None
 - Integer fields always return int or None
 - Error injection is type-safe
 - Null values are properly handled
 - No infinity or NaN values
 - Extreme values are within Spark's acceptable range
+
+**test_array_type_compatibility.py** verifies:
+- Array fields always return list or None
+- Error injection never returns strings for arrays
+- Arrays with different item types work correctly
+- Null and empty arrays are properly handled
 
 ## Usage Recommendations
 
@@ -235,9 +278,11 @@ With error_rate > 0, you'll get:
 - **Negative values** - Valid numeric values
 - **Zero values** - Valid numeric values (0.0 for float, 0 for int)
 - **Extreme values** - Very large/small but valid numeric values
+- **Empty arrays** - Valid empty lists for array columns
 
 You will **NOT** get:
 - String values in numeric columns
+- String values in array columns (like "not_an_array")
 - Type mismatches
 - Infinity or NaN values
 
@@ -314,9 +359,18 @@ All Spark type compatibility issues have been resolved:
 
 ✅ **Number fields** return float or None (never int or string)
 ✅ **Integer fields** return int or None (never float or string)
+✅ **Array fields** return list or None (never string or other types)
 ✅ **No infinity values** - Uses maximum representable values instead
 ✅ **Null values** properly handled for nullable columns
 ✅ **Error injection** is type-safe and Spark-compatible
 ✅ **Comprehensive tests** verify all scenarios
 
 Your Spark generator should now work reliably with any schema and any error rate!
+
+## Issues Resolved
+
+This document addresses all three type compatibility errors encountered:
+
+1. ✅ **DoubleType cannot accept integer** - Fixed by ensuring generate_number() always returns float
+2. ✅ **DoubleType cannot accept string "INVALID_DATA"** - Fixed by removing string errors from numeric types
+3. ✅ **ArrayType cannot accept string "not_an_array"** - Fixed by removing string errors from array types
